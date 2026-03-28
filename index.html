@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lattice Inc — Performance Research & Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,500;1,700&family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --clay:#C4785A;--terra:#B85C38;--sand:#E8DDD0;
+  --bark:#1E140D;--bark2:#2C1F14;--moss:#3D4E33;
+  --cream:#F5EFE6;--gold:#C9A84C;--warm:#FDFAF6;
+  --muted:#7A6A5A;--light:#F0E9DF;
+  --serif:'Cormorant Garamond',serif;
+  --sans:'DM Sans',sans-serif;
+  --label:'Syne',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--warm);color:var(--bark2);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* grain overlay */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:1000;opacity:.4}
+
+/* ── NAV ── */
+nav{position:fixed;inset:0 0 auto;z-index:500;height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 3rem;background:rgba(253,250,246,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(196,120,90,.1)}
+.nav-logo{font-family:var(--label);font-size:.85rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--bark2);cursor:pointer;text-decoration:none}
+.nav-logo em{color:var(--clay);font-style:normal}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{font-family:var(--label);font-size:.65rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:color .2s}
+.nav-links a:hover{color:var(--clay)}
+.nav-cta{font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;background:var(--clay);color:#fff;border:none;padding:.55rem 1.2rem;cursor:pointer;transition:background .2s}
+.nav-cta:hover{background:var(--terra)}
+.hamburger{display:none;background:none;border:none;cursor:pointer;flex-direction:column;gap:5px}
+.hamburger span{display:block;width:20px;height:1.5px;background:var(--bark2)}
+.mob-menu{display:none;position:fixed;inset:60px 0 0;background:var(--warm);z-index:499;flex-direction:column;padding:2.5rem 2rem;gap:1.5rem;border-top:1px solid rgba(196,120,90,.1)}
+.mob-menu a{font-family:var(--label);font-size:.75rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.mob-menu.open{display:flex}
+
+/* ── PAGE SYSTEM ── */
+.page{display:none;padding-top:60px}
+.page.active{display:block}
+
+/* ── SHARED UTILITIES ── */
+.eyebrow{font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--clay);display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
+.eyebrow::before{content:'';flex-shrink:0;width:1.8rem;height:1px;background:currentColor}
+.eyebrow.gold{color:var(--gold)}
+.eyebrow.light{color:rgba(232,221,208,.5)}
+.eyebrow.center{justify-content:center}
+.eyebrow.center::before{display:none}
+.display{font-family:var(--serif);font-weight:700;line-height:1.05;letter-spacing:-.01em}
+.display em{font-style:italic;color:var(--clay)}
+.display.light em{color:var(--clay)}
+.body-text{font-family:var(--sans);font-size:.95rem;line-height:1.9;color:var(--muted)}
+.body-text.light{color:rgba(232,221,208,.55)}
+.wrap{max-width:1260px;margin:0 auto;padding:0 3rem}
+.btn{font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:.85rem 2rem;cursor:pointer;transition:all .2s;border:none;display:inline-block;text-decoration:none}
+.btn-dark{background:var(--bark2);color:var(--cream)}
+.btn-dark:hover{background:var(--clay);color:#fff}
+.btn-clay{background:var(--clay);color:#fff}
+.btn-clay:hover{background:var(--terra)}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.8)}
+.btn-ghost:hover{background:var(--clay);border-color:var(--clay);color:#fff}
+.btn-ghost-dark{background:transparent;border:1px solid rgba(30,20,13,.25);color:var(--bark2)}
+.btn-ghost-dark:hover{background:var(--bark2);color:var(--cream)}
+
+/* footer */
+.ft{background:var(--bark);padding:5rem 0 2.5rem}
+.ft-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:4rem;padding-bottom:3rem;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:2rem}
+.ft-logo{font-family:var(--label);font-size:.9rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);margin-bottom:.8rem}
+.ft-logo em{color:var(--clay);font-style:normal}
+.ft-tag{font-size:.8rem;line-height:1.75;color:rgba(232,221,208,.35);max-width:240px}
+.ft-head{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem}
+.ft-links{list-style:none;display:flex;flex-direction:column;gap:.65rem}
+.ft-links a{font-size:.8rem;color:rgba(232,221,208,.35);cursor:pointer;transition:color .2s}
+.ft-links a:hover{color:var(--clay)}
+.ft-bottom{display:flex;justify-content:space-between;font-size:.68rem;color:rgba(232,221,208,.18)}
+
+/* ══════════════════════════════════════════
+   HOME
+══════════════════════════════════════════ */
+
+/* HERO */
+.hero{min-height:calc(100vh - 60px);display:grid;grid-template-columns:55% 45%;background:var(--bark)}
+.hero-left{display:flex;flex-direction:column;justify-content:flex-end;padding:5rem 4rem 5rem 3rem;border-right:1px solid rgba(255,255,255,.05)}
+.hero-overline{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:rgba(232,221,208,.3);margin-bottom:2.5rem;display:flex;align-items:center;gap:.75rem}
+.hero-overline::before{content:'';display:block;width:1.5rem;height:1px;background:var(--clay)}
+.hero-h1{font-family:var(--serif);font-size:clamp(4rem,7vw,7.5rem);font-weight:700;line-height:.96;letter-spacing:-.02em;color:var(--warm);margin-bottom:2.5rem}
+.hero-h1 em{font-style:italic;color:var(--clay);display:block}
+.hero-rule{width:2.5rem;height:1px;background:rgba(196,120,90,.4);margin-bottom:2rem}
+.hero-mission{font-size:.9rem;line-height:1.85;color:rgba(232,221,208,.5);max-width:460px;margin-bottom:3rem}
+.hero-mission strong{color:rgba(232,221,208,.8);font-weight:500}
+.hero-btns{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:4rem}
+.hero-stats{display:grid;grid-template-columns:repeat(3,auto);gap:0;border-top:1px solid rgba(255,255,255,.06)}
+.hero-stat{padding:1.5rem 2rem 1rem 0;border-right:1px solid rgba(255,255,255,.06)}
+.hero-stat:last-child{border-right:none}
+.hero-stat .n{font-family:var(--serif);font-size:2.2rem;font-weight:700;color:var(--gold);line-height:1}
+.hero-stat .l{font-family:var(--label);font-size:.58rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,221,208,.3);margin-top:.3rem}
+
+.hero-right{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:3rem 2.5rem}
+.hero-bg-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 60%,rgba(196,120,90,.22) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(61,78,51,.3) 0%,transparent 55%)}
+.hero-tag{position:relative;z-index:2;align-self:flex-end}
+.hero-tag-inner{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:1rem 1.4rem;text-align:right}
+.hero-tag-inner .ht-val{font-family:var(--serif);font-size:1.6rem;font-weight:700;color:var(--gold);display:block;line-height:1}
+.hero-tag-inner .ht-lbl{font-family:var(--label);font-size:.55rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,221,208,.3);display:block;margin-top:.25rem}
+.hero-quote{position:relative;z-index:2;background:var(--cream);padding:2rem 2.2rem;margin-top:auto}
+.hero-quote blockquote{font-family:var(--serif);font-size:1rem;font-style:italic;line-height:1.65;color:var(--bark2);margin-bottom:.8rem}
+.hero-quote cite{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--clay);font-style:normal}
+.hero-wordmark{position:absolute;bottom:-2rem;left:-1rem;font-family:var(--serif);font-size:14rem;font-weight:700;color:rgba(255,255,255,.02);line-height:1;user-select:none;letter-spacing:-.04em;z-index:1}
+
+/* STATEMENT BAND */
+.statement{background:var(--clay);padding:4rem 0}
+.statement-inner{max-width:900px;margin:0 auto;padding:0 3rem;text-align:center}
+.statement blockquote{font-family:var(--serif);font-size:clamp(1.4rem,2.8vw,2.2rem);font-style:italic;color:#fff;line-height:1.6}
+
+/* THINK TANK SECTION */
+.think-tank{background:var(--warm);padding:7rem 0}
+.tt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8rem;align-items:start}
+.tt-left .display{font-size:clamp(2.8rem,4.5vw,4rem);color:var(--bark2);margin-bottom:2rem}
+.tt-left .body-text{margin-bottom:1.2rem}
+.tt-freedom{font-family:var(--serif);font-size:1.2rem;font-style:italic;line-height:1.65;color:var(--bark2);border-left:2px solid var(--clay);padding-left:1.4rem;margin:2.2rem 0}
+.tt-right{padding-top:5rem}
+.tt-point{display:flex;gap:1.4rem;margin-bottom:2.5rem;align-items:flex-start}
+.tt-point-num{font-family:var(--serif);font-size:3.5rem;font-weight:700;color:rgba(196,120,90,.15);line-height:1;flex-shrink:0;min-width:2.5rem}
+.tt-point-body h4{font-family:var(--label);font-size:.68rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--clay);margin-bottom:.5rem}
+.tt-point-body p{font-size:.88rem;line-height:1.8;color:var(--muted)}
+
+/* TWO EXPERIENCES */
+.two-exp{display:grid;grid-template-columns:1fr 1fr;min-height:70vh}
+.exp{position:relative;overflow:hidden;padding:5rem 4rem;display:flex;flex-direction:column;justify-content:flex-end}
+.exp-enrich{background:var(--bark2)}
+.exp-digital{background:var(--moss)}
+.exp-glow-enrich{position:absolute;inset:0;background:radial-gradient(ellipse at 20% 80%,rgba(196,120,90,.25) 0%,transparent 55%)}
+.exp-glow-digital{position:absolute;inset:0;background:radial-gradient(ellipse at 80% 20%,rgba(201,168,76,.15) 0%,transparent 55%)}
+.exp-num{font-family:var(--serif);font-size:9rem;font-weight:700;color:rgba(255,255,255,.04);position:absolute;top:-1rem;right:1.5rem;line-height:1;user-select:none;z-index:0}
+.exp-inner{position:relative;z-index:1}
+.exp-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:1rem}
+.exp-title{font-family:var(--serif);font-size:clamp(2rem,3.5vw,3rem);font-weight:700;color:#fff;line-height:1.1;margin-bottom:1.2rem}
+.exp-title em{font-style:italic;display:block}
+.exp-body{font-size:.85rem;line-height:1.85;color:rgba(255,255,255,.55);max-width:440px;margin-bottom:2rem}
+.exp-cta{font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:none;border:none;border-bottom:1px solid rgba(255,255,255,.3);padding-bottom:3px;cursor:pointer;transition:border-color .2s}
+.exp-cta:hover{border-color:#fff}
+
+/* ARCH DIAGRAM */
+.arch{background:var(--light);padding:6rem 0}
+.arch-center{text-align:center;margin-bottom:4rem}
+.arch-center .display{font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);margin-bottom:.8rem}
+.arch-center .body-text{max-width:480px;margin:0 auto}
+.arch-flow{max-width:800px;margin:0 auto;padding:0 3rem}
+.arch-node-top{background:var(--bark2);color:var(--gold);font-family:var(--serif);font-size:1rem;font-style:italic;padding:1.2rem 2.5rem;text-align:center;max-width:500px;margin:0 auto 0}
+.arch-connector{display:flex;flex-direction:column;align-items:center;margin:.5rem 0}
+.arch-connector svg{display:block}
+.arch-mid{background:rgba(196,120,90,.12);border:1px solid rgba(196,120,90,.2);padding:.8rem 2rem;text-align:center;max-width:340px;margin:0 auto}
+.arch-mid-label{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay)}
+.arch-split-connector{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:.5rem}
+.arch-branch{padding:2rem;background:#fff;border-top:3px solid var(--clay)}
+.arch-branch.moss-top{border-top-color:var(--moss)}
+.arch-branch-lbl{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:.5rem}
+.arch-branch.moss-top .arch-branch-lbl{color:var(--moss)}
+.arch-branch-title{font-family:var(--serif);font-size:1.2rem;font-weight:700;color:var(--bark2);margin-bottom:.8rem}
+.arch-branch-items{list-style:none;display:flex;flex-direction:column;gap:.35rem}
+.arch-branch-items li{font-size:.78rem;color:var(--muted);display:flex;align-items:baseline;gap:.5rem;line-height:1.5}
+.arch-branch-items li::before{content:'—';color:var(--clay);flex-shrink:0;font-size:.7rem}
+.arch-branch.moss-top .arch-branch-items li::before{color:var(--moss)}
+.arch-cta{text-align:center;margin-top:3rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+
+/* FOUNDER */
+.founder{background:var(--bark);padding:7rem 0}
+.founder-grid{display:grid;grid-template-columns:1fr 1fr;gap:7rem;align-items:center}
+.founder-left .eyebrow{margin-bottom:1.5rem}
+.founder-left .display{font-size:clamp(2.5rem,4vw,3.5rem);color:var(--warm);margin-bottom:2rem}
+.founder-left .body-text{margin-bottom:1.2rem}
+.founder-right{}
+.founder-quote{border:1px solid rgba(255,255,255,.08);padding:3rem}
+.founder-quote blockquote{font-family:var(--serif);font-size:1.25rem;font-style:italic;color:var(--warm);line-height:1.7;margin-bottom:2rem}
+.founder-sig{display:flex;align-items:center;gap:1rem}
+.founder-avatar{width:42px;height:42px;border-radius:50%;background:var(--clay);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:1.1rem;color:#fff;font-weight:700;flex-shrink:0}
+.founder-name{font-family:var(--label);font-size:.75rem;font-weight:700;color:var(--warm)}
+.founder-title{font-family:var(--label);font-size:.58rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(232,221,208,.3);margin-top:.15rem}
+
+/* CTA PANELS */
+.cta-panels{display:grid;grid-template-columns:repeat(3,1fr);min-height:420px}
+.cta-panel{padding:3.5rem;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;cursor:pointer;transition:opacity .2s}
+.cta-panel:hover{opacity:.92}
+.cta-panel-bark{background:var(--bark2)}
+.cta-panel-clay{background:var(--clay)}
+.cta-panel-moss{background:var(--moss)}
+.cta-panel-num{font-family:var(--serif);font-size:6rem;font-weight:700;color:rgba(255,255,255,.05);position:absolute;bottom:-1rem;right:1rem;line-height:1;user-select:none}
+.cta-panel-top .ep-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:.8rem}
+.cta-panel-top h3{font-family:var(--serif);font-size:1.7rem;font-weight:700;color:#fff;line-height:1.15;position:relative;z-index:1}
+.cta-panel-mid{font-size:.82rem;line-height:1.8;color:rgba(255,255,255,.45);position:relative;z-index:1}
+.cta-panel-link{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#fff;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:2px;position:relative;z-index:1}
+
+/* ══════════════════════════════════════════
+   PAGE HERO (shared)
+══════════════════════════════════════════ */
+.page-hero{background:var(--bark);padding:5.5rem 0 4rem;position:relative;overflow:hidden}
+.page-hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,rgba(196,120,90,.12) 0%,transparent 60%)}
+.page-hero-inner{position:relative;z-index:1;max-width:800px}
+.page-hero-eyebrow{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:rgba(232,221,208,.35);display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem}
+.page-hero-eyebrow::before{content:'';display:block;width:1.5rem;height:1px;background:rgba(196,120,90,.5)}
+.page-hero h1{font-family:var(--serif);font-size:clamp(3rem,5.5vw,5.5rem);font-weight:700;line-height:1.04;color:var(--warm);letter-spacing:-.01em;margin-bottom:1.8rem}
+.page-hero h1 em{font-style:italic;color:var(--clay)}
+.page-hero p{font-size:.95rem;line-height:1.85;color:rgba(232,221,208,.5);max-width:580px}
+
+/* think tank breadcrumb */
+.tt-breadcrumb{background:rgba(30,20,13,.6);border-bottom:1px solid rgba(255,255,255,.05);padding:.75rem 0}
+.tt-bc-inner{display:flex;align-items:center;gap:.6rem;font-family:var(--label);font-size:.58rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;flex-wrap:wrap}
+.tt-bc-inner .bc-org{color:rgba(232,221,208,.5)}
+.tt-bc-inner .bc-sep{color:rgba(196,120,90,.3)}
+.tt-bc-inner .bc-current{color:var(--clay)}
+
+/* needs/contact strip at bottom of sub-pages */
+.page-needs-strip{background:var(--light);border-top:1px solid rgba(196,120,90,.1);padding:4rem 0}
+.pns-inner{display:flex;gap:4rem;align-items:flex-start;flex-wrap:wrap}
+.pns-left{flex:0 0 300px}
+.pns-left .eyebrow{margin-bottom:.8rem}
+.pns-left h3{font-family:var(--serif);font-size:1.8rem;font-weight:700;color:var(--bark2);margin-bottom:.6rem}
+.pns-left p{font-size:.82rem;color:var(--muted);line-height:1.75;margin-bottom:1.2rem}
+.pns-left a{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--clay);border-bottom:1px solid var(--clay);padding-bottom:2px;cursor:pointer}
+.pns-tags{flex:1;display:flex;flex-wrap:wrap;gap:.5rem;align-content:flex-start;padding-top:3.5rem}
+.pns-tag{font-family:var(--label);font-size:.58rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--bark2);background:#fff;border:1px solid rgba(196,120,90,.15);padding:.45rem .9rem;display:flex;align-items:center;gap:.5rem}
+.pns-tag::before{content:'→';color:var(--clay)}
+
+.page-contact-strip{background:var(--bark);padding:5rem 0;text-align:center}
+.page-contact-strip h3{font-family:var(--serif);font-size:clamp(2rem,3.5vw,3rem);font-weight:700;color:var(--warm);margin-bottom:.8rem}
+.page-contact-strip p{font-size:.9rem;color:rgba(232,221,208,.4);max-width:480px;margin:0 auto 2rem;line-height:1.8}
+
+/* ══════════════════════════════════════════
+   THE PROGRAM
+══════════════════════════════════════════ */
+.prog-steps{padding:6rem 0;background:var(--warm)}
+.prog-step{display:grid;grid-template-columns:80px 1fr;gap:2rem;padding:3rem 0;border-bottom:1px solid rgba(196,120,90,.1);align-items:start}
+.prog-step:first-child{border-top:1px solid rgba(196,120,90,.1)}
+.prog-step-num{font-family:var(--serif);font-size:3.5rem;font-weight:700;color:rgba(196,120,90,.2);line-height:1;padding-top:.2rem}
+.prog-step-num.accent{color:rgba(61,78,51,.2)}
+.prog-step-body{}
+.prog-step-label{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:.5rem}
+.prog-step-label.moss{color:var(--moss)}
+.prog-step-title{font-family:var(--serif);font-size:1.6rem;font-weight:700;color:var(--bark2);margin-bottom:.8rem}
+.prog-step-body-text{font-size:.88rem;line-height:1.85;color:var(--muted);max-width:620px}
+
+.prog-pilot-bar{background:var(--bark2);padding:4rem 0}
+.prog-pilot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid rgba(255,255,255,.06)}
+.ppg-item{padding:2.5rem;text-align:center;border-right:1px solid rgba(255,255,255,.06)}
+.ppg-item:last-child{border-right:none}
+.ppg-lbl{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(232,221,208,.3);margin-bottom:.6rem}
+.ppg-val{font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--gold)}
+.ppg-sub{font-size:.75rem;color:rgba(232,221,208,.25);margin-top:.3rem}
+
+.prog-curriculum{padding:6rem 0;background:var(--light)}
+.prog-curr-grid{display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:start}
+.curr-track-label{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1.5rem;display:flex;align-items:center;gap:.75rem}
+.curr-track-label.moss-l{color:var(--moss)}
+.curr-track-label::before{content:'';display:block;width:1.5rem;height:1px;background:currentColor}
+.curr-items{display:flex;flex-direction:column;gap:.8rem}
+.curr-item{display:flex;gap:1rem;align-items:flex-start}
+.curr-item-arrow{color:var(--clay);font-weight:700;flex-shrink:0;margin-top:.1rem}
+.curr-item strong{display:block;font-size:.85rem;font-weight:600;color:var(--bark2)}
+.curr-item span{font-size:.8rem;line-height:1.65;color:var(--muted)}
+.culture-pills{display:flex;flex-wrap:wrap;gap:.4rem}
+.culture-pill{font-size:.72rem;font-family:var(--label);font-weight:600;letter-spacing:.06em;background:#fff;border:1px solid rgba(61,78,51,.15);color:var(--bark2);padding:.3rem .8rem}
+
+/* roles explorer wrapper */
+.roles-wrap{padding:6rem 0;background:var(--bark)}
+.roles-intro{margin-bottom:2.5rem}
+.roles-intro .display{font-size:clamp(2.2rem,3.5vw,3rem);color:var(--warm);margin-bottom:1rem}
+.roles-intro .body-text.light{max-width:640px}
+.roles-explorer-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);padding:2rem}
+
+/* inline roles CSS (rebranded dark theme) */
+.r-filter-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.r-filter-btn{font-family:var(--label);font-size:.58rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px 13px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:rgba(232,221,208,.5);cursor:pointer;transition:all .15s}
+.r-filter-btn.active,.r-filter-btn:hover{background:var(--clay);color:#fff;border-color:var(--clay)}
+.r-count{font-family:var(--label);font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(232,221,208,.3);margin-bottom:1rem}
+.r-count span{color:var(--gold)}
+.r-section{margin-bottom:1.8rem}
+.r-section-label{font-family:var(--label);font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(201,168,76,.6);margin-bottom:.6rem;padding-left:2px}
+.r-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.r-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);padding:12px 14px;cursor:pointer;transition:border-color .2s}
+.r-card:hover{border-color:rgba(196,120,90,.5)}
+.r-card-name{font-size:13px;font-weight:500;color:rgba(253,250,246,.85);margin-bottom:3px;font-family:var(--sans)}
+.r-card-industry{font-size:11px;color:rgba(232,221,208,.35);margin-bottom:6px;font-family:var(--sans)}
+.r-tags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+.r-tag{font-size:10px;padding:2px 7px;font-weight:500;font-family:var(--label)}
+.r-tag-tx{background:rgba(24,95,165,.2);color:#7aafe3}
+.r-tag-gap{background:rgba(99,56,6,.3);color:#e8b870}
+.r-tag-ce{background:rgba(59,109,17,.2);color:#a8d080}
+.r-gap{font-size:10px;color:rgba(232,221,208,.35);line-height:1.5;border-top:1px solid rgba(255,255,255,.06);padding-top:6px;margin-top:4px;font-family:var(--sans)}
+
+/* ══════════════════════════════════════════
+   THE SHOW
+══════════════════════════════════════════ */
+.show-format{padding:6rem 0;background:var(--warm)}
+.show-segments{display:flex;flex-direction:column;gap:0;margin-top:3rem}
+.seg{display:grid;grid-template-columns:160px 1fr;gap:2.5rem;padding:2.5rem 0;border-bottom:1px solid rgba(196,120,90,.1);align-items:start}
+.seg:first-child{border-top:1px solid rgba(196,120,90,.1)}
+.seg-tag-col{display:flex;flex-direction:column;align-items:flex-start;gap:.5rem}
+.seg-num{font-family:var(--serif);font-size:2.5rem;font-weight:700;color:rgba(196,120,90,.2);line-height:1}
+.seg-badge{font-family:var(--label);font-size:.55rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:.3rem .7rem;display:inline-block}
+.seg-badge-clay{background:rgba(196,120,90,.12);color:var(--clay)}
+.seg-badge-moss{background:rgba(61,78,51,.1);color:var(--moss)}
+.seg-badge-gold{background:rgba(201,168,76,.1);color:#9a7d2d}
+.seg-badge-terra{background:rgba(184,92,56,.08);color:var(--terra)}
+.seg-badge-bark{background:rgba(30,20,13,.06);color:var(--muted)}
+.seg-content h4{font-family:var(--serif);font-size:1.3rem;font-weight:700;color:var(--bark2);margin-bottom:.6rem}
+.seg-content p{font-size:.85rem;line-height:1.85;color:var(--muted)}
+
+.show-why{padding:6rem 0;background:var(--bark2)}
+.show-why-grid{display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center}
+.show-why-left .display{font-size:clamp(2.2rem,3.5vw,3rem);color:var(--warm);margin-bottom:2rem}
+.show-money-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(255,255,255,.06)}
+.show-money-card{background:var(--bark2);padding:1.8rem;border:1px solid rgba(255,255,255,.05)}
+.smc-label{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.smc-body{font-size:.78rem;color:rgba(232,221,208,.4);line-height:1.65}
+
+.show-influencer{padding:6rem 0;background:var(--cream);text-align:center}
+.show-influencer .display{font-size:clamp(2.4rem,4vw,3.5rem);color:var(--bark2);margin:1rem auto 1.5rem;max-width:600px}
+.show-influencer .body-text{max-width:520px;margin:0 auto 2.5rem}
+
+/* ══════════════════════════════════════════
+   PARTNER
+══════════════════════════════════════════ */
+.partner-why{padding:6rem 0;background:var(--warm)}
+.partner-why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:3rem;border:1px solid rgba(196,120,90,.12)}
+.pwg-item{padding:2.5rem;border-right:1px solid rgba(196,120,90,.12)}
+.pwg-item:last-child{border-right:none}
+.pwg-item h4{font-family:var(--serif);font-size:1.2rem;font-weight:700;color:var(--bark2);margin-bottom:.7rem}
+.pwg-item p{font-size:.82rem;line-height:1.8;color:var(--muted)}
+
+.tiers-section{padding:6rem 0;background:var(--light)}
+.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:3rem}
+.tier{display:flex;flex-direction:column;padding:3rem;position:relative}
+.tier-bark{background:var(--bark2)}
+.tier-clay{background:var(--clay)}
+.tier-cream{background:var(--warm);border:1px solid rgba(196,120,90,.15)}
+.tier-badge{font-family:var(--label);font-size:.55rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;position:absolute;top:1.2rem;right:1.2rem;padding:.3rem .7rem}
+.tier-badge-gold{background:rgba(201,168,76,.15);color:var(--gold)}
+.tier-badge-white{background:rgba(255,255,255,.12);color:#fff}
+.tier-badge-clay{background:rgba(196,120,90,.1);color:var(--clay)}
+.tier-name{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;opacity:.45;margin-bottom:.8rem}
+.tier-price{font-family:var(--serif);font-size:3.5rem;font-weight:700;line-height:1;margin-bottom:.3rem}
+.tier-unit{font-size:.75rem;opacity:.35;font-family:var(--label)}
+.tier-divider{height:1px;background:rgba(255,255,255,.08);margin:1.5rem 0}
+.tier-cream .tier-divider{background:rgba(196,120,90,.12)}
+.tier-perks{list-style:none;flex:1;margin-bottom:2rem;display:flex;flex-direction:column;gap:.65rem}
+.tier-perks li{font-size:.82rem;display:flex;align-items:flex-start;gap:.6rem;opacity:.75;line-height:1.5}
+.tier-check{flex-shrink:0;margin-top:.1rem;font-weight:700}
+
+.pipeline-section{padding:5rem 0;background:var(--bark2)}
+.pipeline-inner{max-width:740px;margin:0 auto;text-align:center}
+.pipeline-inner .display{font-size:clamp(2.2rem,3.5vw,3rem);color:var(--warm);margin:1rem 0}
+.pipeline-inner .body-text.light{margin-bottom:.8rem}
+.pipeline-price{font-family:var(--label);font-size:.65rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(232,221,208,.25);margin-bottom:2rem}
+
+/* ══════════════════════════════════════════
+   BOARD
+══════════════════════════════════════════ */
+.board-why{padding:6rem 0;background:var(--warm)}
+.board-why-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:3rem}
+.bwg-card{padding:2.5rem;background:var(--light)}
+.bwg-card h4{font-family:var(--serif);font-size:1.2rem;font-weight:700;color:var(--bark2);margin-bottom:.7rem}
+.bwg-card p{font-size:.82rem;line-height:1.8;color:var(--muted)}
+
+.board-profiles{padding:6rem 0;background:var(--light)}
+.profiles-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(196,120,90,.1);margin-top:3rem}
+.profile{background:var(--warm);padding:2rem}
+.profile-icon{font-size:1.5rem;margin-bottom:.8rem;display:block}
+.profile h4{font-family:var(--label);font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--bark2);margin-bottom:.6rem}
+.profile p{font-size:.78rem;line-height:1.7;color:var(--muted)}
+
+.board-commit{padding:5rem 0;background:var(--bark2)}
+.board-commit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid rgba(255,255,255,.06);margin-top:3rem}
+.bcomm{padding:2.5rem;border-right:1px solid rgba(255,255,255,.06);text-align:center}
+.bcomm:last-child{border-right:none}
+.bcomm-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:.6rem}
+.bcomm-val{font-family:var(--serif);font-size:1.8rem;font-weight:700;color:var(--warm);margin-bottom:.4rem}
+.bcomm-sub{font-size:.75rem;color:rgba(232,221,208,.25);line-height:1.6}
+
+/* ══════════════════════════════════════════
+   OUR NEEDS
+══════════════════════════════════════════ */
+.needs-status{padding:4rem 0;background:var(--light)}
+.needs-status-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(196,120,90,.1);margin-top:2rem}
+.ns-card{background:var(--warm);padding:2rem;text-align:center}
+.ns-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem}
+.ns-val{font-family:var(--serif);font-size:1.6rem;font-weight:700;margin-bottom:.3rem}
+.ns-pos{color:var(--moss)}
+.ns-mid{color:var(--gold)}
+.ns-neg{color:var(--clay)}
+.ns-sub{font-size:.72rem;color:var(--muted)}
+
+.needs-categories{padding:6rem 0;background:var(--warm)}
+.needs-cat{margin-bottom:4rem}
+.needs-cat-header{display:flex;align-items:center;gap:.75rem;font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid rgba(196,120,90,.1)}
+.needs-cat-header::before{content:'';display:block;width:1.5rem;height:1px;background:currentColor;flex-shrink:0}
+.needs-cat-header.gold{color:#9a7d2d}
+.needs-cat-header.moss{color:var(--moss)}
+.needs-cat-header.muted{color:var(--muted)}
+.needs-items{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(196,120,90,.08)}
+.needs-item{background:var(--warm);padding:1.5rem 2rem}
+.needs-item h4{font-size:.88rem;font-weight:600;color:var(--bark2);margin-bottom:.35rem;font-family:var(--sans)}
+.needs-item p{font-size:.78rem;line-height:1.65;color:var(--muted)}
+
+.needs-cta-inner{background:var(--bark2);padding:4rem;margin-top:4rem;text-align:center}
+.needs-cta-inner h3{font-family:var(--serif);font-size:2.2rem;font-weight:700;color:var(--warm);margin-bottom:.8rem}
+.needs-cta-inner p{font-size:.88rem;color:rgba(232,221,208,.4);max-width:480px;margin:0 auto 2rem;line-height:1.8}
+
+/* ══════════════════════════════════════════
+   CONTACT
+══════════════════════════════════════════ */
+.contact-section{padding:6rem 0;background:var(--warm)}
+.contact-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:2.5rem}
+.ctab{font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.55rem 1.2rem;border:1px solid rgba(30,20,13,.15);color:var(--muted);background:transparent;cursor:pointer;transition:all .2s}
+.ctab.active{background:var(--bark2);color:var(--cream);border-color:var(--bark2)}
+.ctab:hover:not(.active){border-color:var(--clay);color:var(--clay)}
+.contact-form-box{background:var(--light);padding:3rem;max-width:720px}
+.cf-desc{font-size:.85rem;color:var(--muted);margin-bottom:2rem;line-height:1.7;border-left:2px solid var(--clay);padding-left:1rem}
+.cf-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.cf-field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
+.cf-field label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(30,20,13,.45)}
+.cf-field input,.cf-field select,.cf-field textarea{background:var(--warm);border:1px solid rgba(30,20,13,.12);padding:.75rem 1rem;font-size:.88rem;font-family:var(--sans);color:var(--bark2);outline:none;transition:border-color .2s;width:100%}
+.cf-field input:focus,.cf-field select:focus,.cf-field textarea:focus{border-color:var(--clay)}
+.cf-field textarea{min-height:110px;resize:vertical}
+.cf-submit{font-family:var(--label);font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;background:var(--bark2);color:var(--cream);border:none;padding:1rem 2.2rem;cursor:pointer;transition:background .2s;margin-top:.5rem}
+.cf-submit:hover{background:var(--clay)}
+.contact-meta{display:flex;gap:3rem;margin-top:2.5rem;padding-top:2rem;border-top:1px solid rgba(196,120,90,.12);flex-wrap:wrap}
+.cm-item .cm-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.cm-item .cm-val{font-size:.85rem;color:var(--bark2)}
+.cf-success{background:var(--light);padding:3rem;max-width:720px;border-left:3px solid var(--clay)}
+.cf-success h3{font-family:var(--serif);font-size:2rem;font-weight:700;color:var(--bark2);margin-bottom:.5rem}
+.cf-success p{font-size:.88rem;color:var(--muted)}
+.cf-success button{margin-top:1.5rem;font-family:var(--label);font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);background:none;border:none;border-bottom:1px solid var(--clay);padding-bottom:2px;cursor:pointer}
+
+/* ══════════════════════════════════════════
+   CAREERS (hidden)
+══════════════════════════════════════════ */
+.careers-section{padding:6rem 0;background:var(--warm)}
+.careers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1px;background:rgba(196,120,90,.08)}
+.career-card{background:var(--warm);padding:2rem;border-top:2px solid var(--clay);transition:background .2s}
+.career-card:hover{background:var(--light)}
+.career-dept{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin-bottom:.4rem}
+.career-title{font-family:var(--serif);font-size:1.1rem;font-weight:700;color:var(--bark2);margin-bottom:.5rem}
+.career-desc{font-size:.78rem;line-height:1.65;color:var(--muted)}
+
+.careers-future{padding:6rem 0;background:var(--light)}
+.vision-box{background:var(--bark2);padding:2.5rem;margin-bottom:3rem;display:flex;gap:1.5rem}
+.vision-box-body p{font-size:.88rem;line-height:1.8;color:rgba(232,221,208,.6)}
+.vision-box-body strong{color:var(--warm);font-weight:600}
+.vision-box-label{font-family:var(--label);font-size:.58rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.careers-future-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1px;background:rgba(196,120,90,.08)}
+.career-card-future{background:var(--light);padding:2rem;border-top:2px solid var(--moss)}
+.career-card-future:hover{background:var(--warm)}
+.career-card-future .career-dept{color:var(--moss)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:1024px){
+  .hero{grid-template-columns:1fr;min-height:auto}
+  .hero-right{display:none}
+  nav{padding:0 1.5rem}
+  .nav-links,.nav-cta{display:none}
+  .hamburger{display:flex}
+  .wrap{padding:0 1.5rem}
+  .tt-grid,.two-exp,.founder-grid,.show-why-grid,.prog-curr-grid{grid-template-columns:1fr}
+  .two-exp{min-height:auto}
+  .arch-split-connector,.tiers-grid,.board-why-grid,.board-commit-grid,.needs-status-grid,.partner-why-grid,.profiles-grid{grid-template-columns:1fr 1fr}
+  .cta-panels{grid-template-columns:1fr}
+  .ft-grid{grid-template-columns:1fr 1fr}
+  .seg{grid-template-columns:1fr}
+  .seg-tag-col{flex-direction:row;align-items:center;gap:1rem}
+  .hero-stats{gap:0}
+  .cf-row{grid-template-columns:1fr}
+  .needs-items{grid-template-columns:1fr}
+  .pns-inner{flex-direction:column}
+}
+@media(max-width:640px){
+  .arch-split-connector,.tiers-grid,.board-commit-grid,.needs-status-grid,.partner-why-grid,.profiles-grid,.board-why-grid,.show-money-grid{grid-template-columns:1fr}
+  .ft-grid{grid-template-columns:1fr}
+  .contact-meta{flex-direction:column;gap:1rem}
+  .hero-h1{font-size:3.5rem}
+}
+
+/* fade in */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fadeUp .65s ease forwards}
+.fu2{animation:fadeUp .65s .12s ease forwards;opacity:0}
+.fu3{animation:fadeUp .65s .24s ease forwards;opacity:0}
+.fu4{animation:fadeUp .65s .36s ease forwards;opacity:0}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="nav-logo" onclick="showPage('home')" style="display:flex;align-items:center;gap:9px;cursor:pointer">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#FDFAF6"/>
+      </svg>
+      <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--bark2);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+    </span>
+  <ul class="nav-links">
+    <li><a onclick="showPage('program')">The Program</a></li>
+    <li><a onclick="showPage('show')">The Show</a></li>
+    <li><a onclick="showPage('partner')">Partner</a></li>
+    <li><a onclick="showPage('board')">Board</a></li>
+    <li><a onclick="showPage('needs')">Our Needs</a></li>
+    <li><a onclick="showPage('contact')">Contact</a></li>
+  </ul>
+  <button class="nav-cta" onclick="showPage('partner')">Become a Partner</button>
+  <button class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></button>
+</nav>
+<div class="mob-menu" id="mobMenu">
+  <a onclick="showPage('home');closeMob()">Home</a>
+  <a onclick="showPage('program');closeMob()">The Program</a>
+  <a onclick="showPage('show');closeMob()">The Show</a>
+  <a onclick="showPage('partner');closeMob()">Partner With Us</a>
+  <a onclick="showPage('board');closeMob()">Join the Board</a>
+  <a onclick="showPage('needs');closeMob()">Our Needs</a>
+  <a onclick="showPage('contact');closeMob()">Contact</a>
+</div>
+
+<!-- ══════════════════════════════════
+     HOME
+══════════════════════════════════════ -->
+<div id="page-home" class="page active">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-left fu">
+      <div>
+        <div class="hero-overline">Austin, TX · Think Tank for Performance Research &amp; Architecture</div>
+        <h1 class="hero-h1 fu2">The<br>alignment<br>our workforce<br><em>demands.</em></h1>
+        <div class="hero-rule"></div>
+        <p class="hero-mission fu3">Across the United States, students graduate academically credentialed yet structurally unprepared for adult performance. <strong>The issue is not lack of ambition — it is misalignment and limited exposure.</strong> Lattice Inc exists to change that.</p>
+        <div class="hero-btns fu4">
+          <button class="btn btn-clay" onclick="showPage('partner')">Become a Partner</button>
+          <button class="btn btn-ghost" onclick="showPage('program')">The Program</button>
+        </div>
+      </div>
+      <div class="hero-stats fu4">
+        <div class="hero-stat"><div class="n">40–50</div><div class="l">Students per cohort</div></div>
+        <div class="hero-stat"><div class="n">1×</div><div class="l">Monthly session</div></div>
+        <div class="hero-stat"><div class="n">100%</div><div class="l">Free for students</div></div>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-bg-glow"></div>
+      <div class="hero-tag">
+        <div class="hero-tag-inner"><span class="ht-val">2026</span><span class="ht-lbl">Pilot Launch</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.8rem;position:relative;z-index:2;align-self:flex-end;margin-bottom:1.5rem">
+        <div class="hero-tag-inner" style="text-align:right"><span class="ht-val">TX → OH</span><span class="ht-lbl">Expansion path</span></div>
+      </div>
+      <div class="hero-quote">
+        <blockquote>"The issue is not lack of ambition — it is misalignment and limited exposure."</blockquote>
+        <cite>Ashanti Sears · Founder, Lattice Inc</cite>
+      </div>
+      <div class="hero-wordmark">L</div>
+    </div>
+  </div>
+
+  <!-- STATEMENT -->
+  <div class="statement">
+    <div class="statement-inner">
+      <blockquote>"Lattice Inc searches for what makes a person perform at their highest level — then architects the environment for that performance to happen."</blockquote>
+    </div>
+  </div>
+
+  <!-- THINK TANK -->
+  <div class="think-tank">
+    <div class="wrap">
+      <div class="tt-grid">
+        <div class="tt-left">
+          <div class="eyebrow" style="margin-bottom:1.5rem">What Lattice Inc Actually Is</div>
+          <h2 class="display" style="font-size:clamp(2.6rem,4vw,3.8rem);color:var(--bark2);margin-bottom:2rem">A think tank for<br>performance research<br>and <em>architecture.</em></h2>
+          <p class="body-text" style="margin-bottom:1.2rem">Lattice Inc is a research-driven organization whose core mission is to be a catalyst for a higher quality of life for Americans. We use the phrase "higher quality of life" deliberately — and with full awareness that quality is subjective.</p>
+          <div class="tt-freedom">"What we're really after is something more universal: freedom from anxiety. The particular anxiety that comes from not knowing who you are, what you're capable of, or where you belong in the world."</div>
+          <p class="body-text" style="margin-bottom:1.2rem">That anxiety is epidemic among young Americans. It is the silent force behind a workforce that is misaligned, underperforming, and disengaged — not because people lack ambition, but because they were never given the architecture to understand themselves.</p>
+          <p class="body-text">In practice, this mission is expressed through <strong style="color:var(--bark2);font-weight:600">two distinct but connected experiences.</strong></p>
+        </div>
+        <div class="tt-right">
+          <div class="tt-point">
+            <div class="tt-point-num">01</div>
+            <div class="tt-point-body">
+              <h4>Performance Research</h4>
+              <p>We ask: what innately makes this person thrive? Using CliftonStrengths as the near-term diagnostic and our proprietary algorithm in development, we identify each student's wiring before introducing them to any industry or role.</p>
+            </div>
+          </div>
+          <div class="tt-point">
+            <div class="tt-point-num">02</div>
+            <div class="tt-point-body">
+              <h4>Performance Architecture</h4>
+              <p>We build the environment — the sessions, curriculum, community, and content — that allows a person to perform at their highest level once they understand who they are.</p>
+            </div>
+          </div>
+          <div class="tt-point">
+            <div class="tt-point-num">03</div>
+            <div class="tt-point-body">
+              <h4>Two Expressions</h4>
+              <p>The enrichment experience delivers the architecture in person. The digital experience distributes it at scale. Together, they reach every young American — whether or not they're in the room.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TWO EXPERIENCES -->
+  <div class="two-exp">
+    <div class="exp exp-enrich">
+      <div class="exp-glow-enrich"></div>
+      <div class="exp-num">01</div>
+      <div class="exp-inner">
+        <div class="exp-label">Experience 01 · In Person</div>
+        <div class="exp-title">The Enrichment<br><em>Experience</em></div>
+        <p class="exp-body">The architectural intervention — a monthly, in-person program that meets students at the intersection of self-discovery and industry exposure. We identify each student's innate wiring, then expose them to the roles, tools, and cultures of industries that align with who they already are. A culture curriculum builds the holistic habits adults actually need to thrive.</p>
+        <button class="exp-cta" onclick="showPage('program')">Explore the program →</button>
+      </div>
+    </div>
+    <div class="exp exp-digital">
+      <div class="exp-glow-digital"></div>
+      <div class="exp-num">02</div>
+      <div class="exp-inner">
+        <div class="exp-label">Experience 02 · Digital</div>
+        <div class="exp-title">The Digital<br><em>Experience</em></div>
+        <p class="exp-body">The cultural distribution channel — a YouTube series that brings the Lattice Inc framework to anyone, anywhere. Ashanti Sears and culturally relevant influencers unpack real careers, explore hobbies that restore the nervous system, surface resources most people don't know exist, and have the honest conversations about adulthood that no one else is having on camera.</p>
+        <button class="exp-cta" onclick="showPage('show')">Explore the show →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="arch">
+    <div class="wrap">
+      <div class="arch-center">
+        <div class="eyebrow center" style="margin-bottom:1rem">How It Connects</div>
+        <h2 class="display arch-center" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);max-width:560px;margin:0 auto 1rem">One question.<br>One organization.<br><em>Two expressions.</em></h2>
+        <p class="body-text" style="text-align:center;max-width:440px;margin:0 auto">Everything Lattice Inc builds flows from a single research question — and branches into two lived experiences that together create lasting change.</p>
+      </div>
+      <div class="arch-flow">
+        <div style="margin-top:3rem">
+          <div class="arch-node-top">"What does it take for a person to perform at their highest level — free from anxiety?"</div>
+          <div class="arch-connector">
+            <svg width="2" height="32" viewBox="0 0 2 32"><line x1="1" y1="0" x2="1" y2="32" stroke="#C4785A" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/></svg>
+          </div>
+          <div class="arch-mid">
+            <div class="arch-mid-label">Lattice Inc — Research &amp; Architecture</div>
+          </div>
+          <div style="display:flex;justify-content:center;margin:.5rem 0">
+            <svg width="200" height="28" viewBox="0 0 200 28">
+              <line x1="100" y1="0" x2="100" y2="14" stroke="#C4785A" stroke-width="1" opacity=".3"/>
+              <line x1="40" y1="14" x2="160" y2="14" stroke="#C4785A" stroke-width="1" opacity=".3"/>
+              <line x1="40" y1="14" x2="40" y2="28" stroke="#C4785A" stroke-width="1" opacity=".3"/>
+              <line x1="160" y1="14" x2="160" y2="28" stroke="#C4785A" stroke-width="1" opacity=".3"/>
+            </svg>
+          </div>
+          <div class="arch-split-connector">
+            <div class="arch-branch">
+              <div class="arch-branch-lbl">Experience 01 · In-Person</div>
+              <div class="arch-branch-title">The Enrichment Experience</div>
+              <ul class="arch-branch-items">
+                <li>CliftonStrengths self-discovery</li>
+                <li>Industry-specific speaker sessions</li>
+                <li>Holistic culture curriculum</li>
+                <li>Experiential learning</li>
+                <li>Alumni quality-of-life tracking</li>
+              </ul>
+            </div>
+            <div class="arch-branch moss-top">
+              <div class="arch-branch-lbl">Experience 02 · Digital</div>
+              <div class="arch-branch-title">The Digital Experience</div>
+              <ul class="arch-branch-items">
+                <li>YouTube career exploration series</li>
+                <li>Influencer-led episode format</li>
+                <li>Nervous system &amp; hobby spotlights</li>
+                <li>Student resource callouts</li>
+                <li>Community feedback &amp; analytics</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="arch-cta">
+          <button class="btn btn-dark" onclick="showPage('program')">The Enrichment Experience</button>
+          <button class="btn btn-ghost-dark" onclick="showPage('show')">The Digital Experience</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOUNDER -->
+  <div class="founder">
+    <div class="wrap">
+      <div class="founder-grid">
+        <div class="founder-left">
+          <div class="eyebrow gold">The Origin</div>
+          <h2 class="display" style="font-size:clamp(2.4rem,4vw,3.5rem);color:var(--warm);margin-bottom:2rem">Built by someone<br>who <em>survived the system.</em></h2>
+          <p class="body-text light" style="margin-bottom:1.2rem">Ashanti Sears grew up in Cleveland, Ohio — a city that has consistently ranked among the top 10 most dangerous in the United States for over a decade. She watched the system shape the trajectories of her family and peers in ways that limited their potential. While her peers followed the path constructed for them, Ashanti participated in programs that changed the direction of her life.</p>
+          <p class="body-text light" style="margin-bottom:2.5rem">Now, with the wisdom and knowledge necessary, she is building the program she wishes had existed — one that teaches students how to be balanced and whole, so they graduate with the confidence and self-assurance to engage the world as creators and contributors, with minimal fear and anxiety.</p>
+          <button class="btn btn-ghost" onclick="showPage('contact')">Connect with Ashanti</button>
+        </div>
+        <div class="founder-right">
+          <div class="founder-quote">
+            <blockquote>"By creating a program that teaches students how to be balanced and whole, students will graduate from Lattice Inc with the confidence and self-assurance necessary to engage in the world as a creator and contributor — with minimal fear and anxiety."</blockquote>
+            <div class="founder-sig">
+              <div class="founder-avatar">A</div>
+              <div>
+                <div class="founder-name">Ashanti Sears</div>
+                <div class="founder-title">Founder, Lattice Inc</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA PANELS -->
+  <div class="cta-panels">
+    <div class="cta-panel cta-panel-bark" onclick="showPage('partner')">
+      <div class="cta-panel-top">
+        <div class="ep-label">For companies</div>
+        <h3>Become a Corporate Partner</h3>
+      </div>
+      <p class="cta-panel-mid">Co-invest in national performance architecture. Fund a cohort. Build your talent pipeline. Associate your brand with a program that proves outcomes.</p>
+      <div class="cta-panel-link">View packages →</div>
+      <div class="cta-panel-num">01</div>
+    </div>
+    <div class="cta-panel cta-panel-clay" onclick="showPage('board')">
+      <div class="cta-panel-top">
+        <div class="ep-label">For leaders</div>
+        <h3>Join the Board</h3>
+      </div>
+      <p class="cta-panel-mid">Strategic advisors with backgrounds in education, workforce development, corporate partnerships, and community impact — help govern a think tank with national ambition.</p>
+      <div class="cta-panel-link">Express interest →</div>
+      <div class="cta-panel-num">02</div>
+    </div>
+    <div class="cta-panel cta-panel-moss" onclick="showPage('show')">
+      <div class="cta-panel-top">
+        <div class="ep-label">For creators</div>
+        <h3>Be On the Show</h3>
+      </div>
+      <p class="cta-panel-mid">Culturally relevant influencers join Ashanti to unpack real careers — with sponsored adventures, honest conversations, and content that moves people from anxiety to direction.</p>
+      <div class="cta-panel-link">Learn about the show →</div>
+      <div class="cta-panel-num">03</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture. Catalyst for a higher quality of life for Americans.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('show')">The Show</a></li><li><a onclick="showPage('partner')">Partner With Us</a></li><li><a onclick="showPage('board')">Join the Board</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Get Involved</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Austin, TX<br>Powered by Capital Factory</p><button class="btn btn-ghost" onclick="showPage('contact')">Reach Out</button></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc. All rights reserved.</p><p>Founded by Ashanti Sears · Austin, TX</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     THE PROGRAM
+══════════════════════════════════════ -->
+<div id="page-program" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Experience 01 of 02 · The Enrichment Experience</div>
+      <h1>The architectural<br>intervention. <em>In person.</em></h1>
+      <p>This is where the Lattice Inc framework is applied directly to a student's life. A monthly session environment designed to move young people from anxiety and misalignment into clarity, confidence, and direction.</p>
+    </div></div>
+  </div>
+  <div class="tt-breadcrumb"><div class="wrap"><div class="tt-bc-inner"><span class="bc-org">Lattice Inc · Think Tank for Performance Research &amp; Architecture</span><span class="bc-sep">·</span><span class="bc-current">Enrichment Experience — Experience 01 of 02</span></div></div></div>
+
+  <!-- Steps -->
+  <div class="prog-steps"><div class="wrap">
+    <div class="eyebrow" style="margin-bottom:.5rem">How It Works</div>
+    <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);margin-bottom:.5rem">Five steps.<br><em>One transformed student.</em></h2>
+    <p class="body-text" style="margin-bottom:3rem;max-width:560px">From the moment a student walks in on Day 1 to years after they leave — Lattice Inc tracks, supports, and advocates for their success.</p>
+
+    <div class="prog-step">
+      <div class="prog-step-num">01</div>
+      <div class="prog-step-body">
+        <div class="prog-step-label">Self-Discovery</div>
+        <div class="prog-step-title">CliftonStrengths Assessment — Day 1</div>
+        <p class="prog-step-body-text">Every student takes the CliftonStrengths Top 5 assessment on their first day. Their results map them to industry pathways and roles that align with their innate wiring and natural-born abilities — so the exposure they receive resonates, not just whatever's available.</p>
+      </div>
+    </div>
+    <div class="prog-step">
+      <div class="prog-step-num">02</div>
+      <div class="prog-step-body">
+        <div class="prog-step-label">Industry Exposure</div>
+        <div class="prog-step-title">Industry-Specific Speaker Sessions</div>
+        <p class="prog-step-body-text">Each monthly session features a professional covering their role's deep expertise, essential SOPs and workflows, industry-specific software and technology, and the most pressing policies affecting their field today. Students don't just hear about careers — they learn the operational reality.</p>
+      </div>
+    </div>
+    <div class="prog-step">
+      <div class="prog-step-num">03</div>
+      <div class="prog-step-body">
+        <div class="prog-step-label">Holistic Development</div>
+        <div class="prog-step-title">Culture Curriculum</div>
+        <p class="prog-step-body-text">Taught by vetted experts through Socratic seminars, field trips, panels, and interactive storytelling. Topics include intrapersonal habits, interpersonal skills, nutrition, shadow work, networking, and personal development — the practical modus operandi for optimal holistic health.</p>
+      </div>
+    </div>
+    <div class="prog-step">
+      <div class="prog-step-num">04</div>
+      <div class="prog-step-body">
+        <div class="prog-step-label">Lived Experience</div>
+        <div class="prog-step-title">Experiential &amp; Project-Based Learning</div>
+        <p class="prog-step-body-text">Students learn through shared experiences, conferences, collaborative projects, and hands-on engagement designed to ease the transition from student to adult — addressing the silent, subconscious anxiety that comes with growing up and entering the world.</p>
+      </div>
+    </div>
+    <div class="prog-step">
+      <div class="prog-step-num accent">05</div>
+      <div class="prog-step-body">
+        <div class="prog-step-label moss">Alumni Tracking · Long-Term Impact</div>
+        <div class="prog-step-title">Quality-of-Life Tracking</div>
+        <p class="prog-step-body-text">Lattice Inc tracks each student's success long after they leave — measuring year-over-year confidence growth, satisfaction in their continuing education pathway, alignment between their chosen role and their CliftonStrengths profile, and their self-worth confidence levels. This ongoing data proves program impact and informs every future iteration of our curriculum.</p>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- Pilot bar -->
+  <div class="prog-pilot-bar"><div class="wrap">
+    <div class="prog-pilot-grid">
+      <div class="ppg-item"><div class="ppg-lbl">Location</div><div class="ppg-val">Capital Factory</div><div class="ppg-sub">Downtown Austin, TX</div></div>
+      <div class="ppg-item"><div class="ppg-lbl">Frequency</div><div class="ppg-val">Monthly Sessions</div><div class="ppg-sub">One speaker per session</div></div>
+      <div class="ppg-item"><div class="ppg-lbl">Cohort</div><div class="ppg-val">40–50 Students</div><div class="ppg-sub">All HS ages · Always free</div></div>
+    </div>
+  </div></div>
+  <div style="background:rgba(196,120,90,.08);border-top:1px solid rgba(196,120,90,.15);padding:1.5rem 0">
+    <div class="wrap">
+      <p style="font-size:0.85rem;line-height:1.8;color:var(--muted);max-width:700px">
+        <strong style="color:var(--bark2)">Growing beyond the pilot.</strong> Lattice Inc is currently operating as a monthly pilot — but our long-term goal is to transition into a <strong style="color:var(--bark2)">full-time enrichment program with our own dedicated facility</strong>. A permanent home where students can access the program year-round, where the community we're building has a physical space to grow, and where Lattice Inc can operate at the full scale of its vision.
+      </p>
+    </div>
+  </div>
+
+  <!-- Curriculum -->
+  <div class="prog-curriculum"><div class="wrap">
+    <div class="eyebrow" style="margin-bottom:.5rem">Curriculum Areas</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:3rem">Industry knowledge.<br><em>Holistic readiness.</em></h2>
+    <div class="prog-curr-grid">
+      <div>
+        <div class="curr-track-label">Industry Track</div>
+        <div class="curr-items">
+          <div class="curr-item"><span class="curr-item-arrow">→</span><div><strong>Expertise &amp; Skills</strong><span>Deep understanding of a sector through specialized training, networking with insiders, and direct experience.</span></div></div>
+          <div class="curr-item"><span class="curr-item-arrow">→</span><div><strong>Technology &amp; Software</strong><span>Software designed to solve specific operational needs — from CRMs to manufacturing execution systems.</span></div></div>
+          <div class="curr-item"><span class="curr-item-arrow">→</span><div><strong>Production Processes</strong><span>Quality standards, material requirements, and workflows specific to each industry.</span></div></div>
+          <div class="curr-item"><span class="curr-item-arrow">→</span><div><strong>Resources &amp; Compliance</strong><span>Industry-specific, location-specific knowledge including grants, programs, and regulatory requirements.</span></div></div>
+        </div>
+        <div style="margin-top:1.5rem;padding:1rem 1.5rem;background:rgba(196,120,90,.06);border-left:2px solid var(--clay)">
+          <p style="font-size:.75rem;color:var(--muted);font-style:italic;line-height:1.65">Note: Lattice Inc highlights non-traditional, professional career pathways within these industries — not conventional trade roles.</p>
+        </div>
+      </div>
+      <div>
+        <div class="curr-track-label moss-l">Culture Track</div>
+        <div class="culture-pills">
+          <span class="culture-pill">Intrapersonal Habits</span><span class="culture-pill">Interpersonal Skills</span><span class="culture-pill">Nutrition &amp; Wellness</span><span class="culture-pill">Shadow Work</span><span class="culture-pill">Networking Skills</span><span class="culture-pill">Personal Development</span><span class="culture-pill">Hobbies &amp; Identity</span><span class="culture-pill">Financial Literacy</span><span class="culture-pill">Resilience &amp; Persistence</span><span class="culture-pill">Confidence Building</span><span class="culture-pill">Adulting Skills</span><span class="culture-pill">Community &amp; Belonging</span>
+        </div>
+        <p style="font-size:.8rem;line-height:1.75;color:var(--muted);margin-top:1.5rem">The culture curriculum framework is developed by Ashanti Sears and taught by outside experts who have researched and tested their own theories on each subject.</p>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- Roles Explorer -->
+  <div class="roles-wrap"><div class="wrap">
+    <div class="roles-intro">
+      <div class="eyebrow gold">Texas Workforce Intelligence</div>
+      <h2 class="display" style="font-size:clamp(2rem,3vw,2.8rem);color:var(--warm);margin-bottom:1rem">Roles Lattice Inc<br><em>prepares students for.</em></h2>
+      <p class="body-text light" style="max-width:640px;margin-bottom:2.5rem">High-demand, employer-identified roles across Texas industries where students arrive at continuing education programs without the context they need. For the pilot, Lattice Inc is centering non-traditional, hands-on technical careers in high-demand Texas industries — roles that most students have never been introduced to, but that offer real pathways, real wages, and real alignment with their innate strengths. Lattice Inc bridges the gap by giving students industry awareness, tool familiarity, and professional confidence before they ever enter a CE program.</p>
+    </div>
+    <div class="roles-explorer-box">
+      <div class="r-filter-bar" id="rFilters">
+        <button class="r-filter-btn active" onclick="rFilter('all',this)">All roles</button>
+        <button class="r-filter-btn" onclick="rFilter('Energy',this)">Energy &amp; Utilities</button>
+        <button class="r-filter-btn" onclick="rFilter('Construction',this)">Construction</button>
+        <button class="r-filter-btn" onclick="rFilter('Healthcare',this)">Healthcare</button>
+        <button class="r-filter-btn" onclick="rFilter('Manufacturing',this)">Manufacturing</button>
+        <button class="r-filter-btn" onclick="rFilter('Logistics',this)">Logistics</button>
+        <button class="r-filter-btn" onclick="rFilter('Ag',this)">Agriculture &amp; Water</button>
+        <button class="r-filter-btn" onclick="rFilter('Tech',this)">Tech &amp; Infrastructure</button>
+      </div>
+      <div class="r-count"><span id="rCount">39</span> roles shown</div>
+      <div id="rContainer"></div>
+    </div>
+  </div></div>
+
+  <!-- Needs + Contact -->
+  <div class="page-needs-strip"><div class="wrap">
+    <div class="pns-inner">
+      <div class="pns-left">
+        <div class="eyebrow">Program Needs</div>
+        <h3>Help us build the program</h3>
+        <p>The enrichment program is free for every student. These are the specific resources and partners that make it possible.</p>
+        <a onclick="showPage('needs')">View all opportunities →</a>
+      </div>
+      <div class="pns-tags">
+        <span class="pns-tag">Volunteer Industry Speakers</span><span class="pns-tag">School Counselor Partnerships</span><span class="pns-tag">Student Transportation Sponsors</span><span class="pns-tag">Curriculum Materials Sponsors</span><span class="pns-tag">CliftonStrengths Funding ($19.99/student)</span><span class="pns-tag">Culture Curriculum Experts</span>
+      </div>
+    </div>
+  </div></div>
+  <div class="page-contact-strip"><div class="wrap"><p class="eyebrow center" style="justify-content:center;margin-bottom:.8rem">Let's talk</p><h3>Partner with the program</h3><p>Sponsor a cohort, send a speaker, or connect us with schools.</p><button class="btn btn-clay" onclick="showPage('contact')">Start the Conversation</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('show')">The Show</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('board')">Board</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p><button class="btn btn-ghost" onclick="showPage('contact')">Reach Out</button></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     THE SHOW
+══════════════════════════════════════ -->
+<div id="page-show" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Experience 02 of 02 · The Digital Experience</div>
+      <h1>The framework,<br><em>at scale.</em></h1>
+      <p>The cultural distribution channel for the Lattice Inc framework — bringing career clarity, nervous system restoration, and honest conversations about adulthood to anyone, anywhere, through a YouTube series built to move people from anxiety to direction.</p>
+    </div></div>
+  </div>
+  <div class="tt-breadcrumb"><div class="wrap"><div class="tt-bc-inner"><span class="bc-org">Lattice Inc · Think Tank for Performance Research &amp; Architecture</span><span class="bc-sep">·</span><span class="bc-current">Digital Experience — Experience 02 of 02</span></div></div></div>
+
+  <div class="show-format"><div class="wrap">
+    <div class="eyebrow">Episode Format</div>
+    <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);margin-bottom:.5rem">One episode.<br><em>Every layer of a career.</em></h2>
+    <p class="body-text" style="max-width:580px;margin-bottom:0">Each episode is structured to be deeply educational and genuinely entertaining — with built-in sponsorship moments, student CTAs, and content that keeps viewers engaged from first frame to last.</p>
+    <div class="show-segments">
+      <div class="seg"><div class="seg-tag-col"><div class="seg-num">01</div><span class="seg-badge seg-badge-clay">Career Deep Dive</span></div><div class="seg-content"><h4>Industry Role Exploration</h4><p>Ashanti and the influencer explore the most interesting but average-paying careers that actually exist. They cover the most relevant SOPs, tools, and software — with a dedicated industry professional as guide. Students see the operational reality of a career, not just the surface.</p></div></div>
+      <div class="seg"><div class="seg-tag-col"><div class="seg-num">02</div><span class="seg-badge seg-badge-moss">Policy &amp; Context</span></div><div class="seg-content"><h4>Expert Context Segment</h4><p>A separate professional provides industry context — the history, landscape, and the most pressing policy affecting the role today. Students get the full picture, not just the glamour. This segment ensures Lattice Inc content holds up as a serious educational resource.</p></div></div>
+      <div class="seg"><div class="seg-tag-col"><div class="seg-num">03</div><span class="seg-badge seg-badge-gold">Dining Intermission</span></div><div class="seg-content"><h4>Sponsored Dining Intermission</h4><p>Ashanti and the influencer step out for a sponsored meal and have a light-hearted, genuinely fun conversation — relatable, human, and designed to keep the viewer engaged between the more substantive segments.</p></div></div>
+      <div class="seg"><div class="seg-tag-col"><div class="seg-num">04</div><span class="seg-badge seg-badge-terra">Hobby Spotlight</span></div><div class="seg-content"><h4>Activity Break — Matched to the Influencer's Wiring</h4><p>A sponsored activity matched to the influencer's innate character. Calm? Pottery, spa, painting. High-energy? Go-kart racing, skiing, rock climbing. A neuroscience expert explains the neurological benefits of the activity — giving students real, science-backed reasons to invest in hobbies that make them feel good.</p></div></div>
+      <div class="seg"><div class="seg-tag-col"><div class="seg-num">05</div><span class="seg-badge seg-badge-bark">Resource Spotlight</span></div><div class="seg-content"><h4>Student &amp; Family Resource Callouts</h4><p>Throughout each episode: government grants like the TEFA program, local facilities like the YMCA, health insurance benefits that cover hobbies, and continuing education programs that help students jumpstart their careers. CTAs throughout drive student engagement and feed Lattice Inc's internal analytics.</p></div></div>
+    </div>
+  </div></div>
+
+  <div class="show-why"><div class="wrap">
+    <div class="show-why-grid">
+      <div class="show-why-left">
+        <div class="eyebrow gold">Why the Show</div>
+        <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--warm);margin-bottom:2rem">Content that works<br><em>while the program works.</em></h2>
+        <p class="body-text light" style="margin-bottom:1.2rem">The YouTube channel isn't just marketing — it's an extension of the Lattice Inc mission. Students who can't attend in-person can still access career exploration, hobby spotlights, resource callouts, and real-talk conversations the show provides.</p>
+        <p class="body-text light" style="margin-bottom:2.5rem">CTAs throughout every video feed Lattice Inc's internal analytics — giving us the student feedback we need to continuously improve the program and demonstrate impact to corporate partners.</p>
+        <button class="btn btn-ghost" onclick="showPage('contact')">Get Involved</button>
+      </div>
+    </div>
+    <!-- Revenue cards below the statement -->
+    <div class="show-money-grid" style="margin-top:3rem;grid-template-columns:repeat(2,1fr)">
+      <div class="show-money-card"><div class="smc-label">Episode Sponsors</div><div class="smc-body">Every episode has built-in sponsorship moments — activity segments, dining intermissions, and product callouts that feel native to the content, not tacked on. Brands get contextual placement in front of a highly engaged, education-minded audience that is actively making decisions about their future.</div></div>
+      <div class="show-money-card"><div class="smc-label">AdSense Revenue</div><div class="smc-body">As the Lattice Inc audience grows, ad revenue compounds. Unlike the enrichment program, the digital experience scales without a proportional increase in operating cost — making it the organization's most powerful long-term revenue asset.</div></div>
+      <div class="show-money-card"><div class="smc-label">Afterschool Placement</div><div class="smc-body">Lattice Inc is actively outreaching to after-school programs, community centers, and youth organizations to play episodes as educational content. This expands reach far beyond the YouTube algorithm and puts the show directly in front of the students it was made for.</div></div>
+      <div class="show-money-card"><div class="smc-label">Brand Deals</div><div class="smc-body">Long-form partnerships with brands whose products and values align with the Lattice Inc mission — wellness, career tools, education technology, and more. As the show builds a track record, brand deal value scales with it.</div></div>
+    </div>
+  </div></div>
+
+  <div class="show-influencer"><div class="wrap">
+    <div class="eyebrow center">For Influencers</div>
+    <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);max-width:560px;margin:1rem auto 1.5rem">Want to be on <em>the show?</em></h2>
+    <p class="body-text" style="max-width:580px;margin:0 auto 1.2rem;text-align:center">The Lattice Inc show isn't limited to creators in the workforce or wellness space. This is an outlet for any influencer with a platform who wants to take their impact a step further — using their reach to give young people a real look at careers, hobbies, and resources that most people never encounter growing up.</p>
+    <p class="body-text" style="max-width:580px;margin:0 auto 2.5rem;text-align:center">If you have an audience and you care about what happens to the next generation — there's a role for you in this show. The only requirement is that you show up as yourself.</p>
+    <button class="btn btn-clay" onclick="showPage('contact')">Express Interest</button>
+  </div></div>
+
+  <div class="page-needs-strip"><div class="wrap"><div class="pns-inner"><div class="pns-left"><div class="eyebrow">Show Needs</div><h3>Help us make the show</h3><p>Building the first 3 pilot episodes with a lean setup. These are the specific partners that make each episode possible.</p><a onclick="showPage('needs')">View all opportunities →</a></div><div class="pns-tags"><span class="pns-tag">Influencers / Co-hosts</span><span class="pns-tag">Activity Sponsors</span><span class="pns-tag">Dining Sponsors</span><span class="pns-tag">Wardrobe &amp; Styling</span><span class="pns-tag">Videographers</span><span class="pns-tag">Video Editors</span><span class="pns-tag">Brand Partners</span></div></div></div></div>
+  <div class="page-contact-strip"><div class="wrap"><p class="eyebrow center" style="justify-content:center;margin-bottom:.8rem">Let's build something people actually watch</p><h3>Sponsors. Influencers. Partners.</h3><p>Reach out and let's talk about your role in the show.</p><button class="btn btn-clay" onclick="showPage('contact')">Get Involved</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p><button class="btn btn-ghost" onclick="showPage('contact')">Reach Out</button></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     PARTNER
+══════════════════════════════════════ -->
+<div id="page-partner" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Co-Investors in Performance Architecture</div>
+      <h1>Invest in the workforce<br><em>before they graduate.</em></h1>
+      <p>Corporate partners aren't just funders — they are co-investors in a national performance architecture. Your investment makes that infrastructure possible and gives you first access to the aligned, prepared workforce it produces.</p>
+      <p style="margin-top:1rem;font-size:0.88rem;line-height:1.8;color:rgba(232,221,208,.4)">Lattice Inc is currently a monthly pilot program — and growing. Our long-term goal is a full-time enrichment program operating out of our own dedicated facility. Early corporate partners help make that transition possible.</p>
+    </div></div>
+  </div>
+  <div class="tt-breadcrumb"><div class="wrap"><div class="tt-bc-inner"><span class="bc-org">Lattice Inc · Think Tank for Performance Research &amp; Architecture</span><span class="bc-sep">·</span><span class="bc-current">Corporate partners fund the research and proof phase</span></div></div></div>
+
+  <div class="pipeline-section"><div class="wrap">
+    <div class="pipeline-inner">
+      <div class="eyebrow center" style="justify-content:center;color:rgba(196,120,90,.6)">General Contractors &amp; Employers</div>
+      <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3rem);color:var(--warm);margin:1rem 0">Building a skilled workforce <em>for your pipeline?</em></h2>
+      <p class="body-text light" style="margin-bottom:.8rem">Lattice Inc offers workforce pipeline contracts for large general contractors and employers who want to fund a dedicated cohort. Students gain the context and awareness necessary to enter your space — you gain a pool of prepared, aligned candidates before they ever apply.</p>
+      <p class="pipeline-price">Workforce Pipeline Contracts start at $75,000/cohort</p>
+      <button class="btn btn-ghost" onclick="showPage('contact')">Discuss a Pipeline Contract</button>
+    </div>
+  </div></div>
+
+  <div class="partner-why"><div class="wrap">
+    <div class="eyebrow">The Case</div>
+    <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);margin-bottom:0">Why companies partner<br><em>with Lattice Inc.</em></h2>
+    <div class="partner-why-grid">
+      <div class="pwg-item"><h4>Pipeline Development</h4><p>Students graduate from Lattice Inc with context, confidence, and clarity about your industry. They're not starting from zero when they enter your workforce.</p></div>
+      <div class="pwg-item"><h4>Strength-Based Alignment</h4><p>Lattice Inc exposes students using CliftonStrengths — meaning students who resonate with your industry actually belong there. Reduced misalignment means reduced turnover.</p></div>
+      <div class="pwg-item"><h4>CSR That Proves Outcomes</h4><p>Associating your brand with a program that measurably changes student trajectories is a powerful CSR story — and Lattice Inc documents the outcomes to prove it.</p></div>
+    </div>
+    <!-- Workforce intelligence callout -->
+    <div style="margin-top:2.5rem;background:var(--bark);padding:2rem 2.5rem;display:flex;align-items:flex-start;gap:1.5rem">
+      <div style="font-size:1.4rem;flex-shrink:0">🗺️</div>
+      <div>
+        <p style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem">See It in Action</p>
+        <p style="font-size:0.9rem;line-height:1.8;color:rgba(232,221,208,.65)">Want a clear example of how Lattice Inc supports your industry? Our <strong style="color:var(--warm)">Texas Workforce Intelligence</strong> explorer on The Program page maps 39 high-demand roles across Energy, Construction, Healthcare, Manufacturing, Logistics, Agriculture, and Tech — showing exactly what the employer skills gap looks like and how Lattice Inc closes it before students ever enter a CE program.</p>
+        <button onclick="showPage('program')" style="margin-top:1rem;font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);background:none;border:none;border-bottom:1px solid rgba(201,168,76,.4);padding-bottom:2px;cursor:pointer">View the Workforce Intelligence Explorer →</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="tiers-section"><div class="wrap">
+    <div class="eyebrow">Partnership Packages</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:.5rem">Three ways to <em>get involved.</em></h2>
+    <p class="body-text" style="margin-bottom:0">Every package creates real value for your company while making the Lattice Inc program possible for students.</p>
+    <div class="tiers-grid">
+      <div class="tier tier-bark">
+        <div class="tier-badge tier-badge-gold">Most Impactful</div>
+        <div class="tier-name">Founding Partner</div>
+        <div class="tier-price" style="color:var(--gold)">$50K</div>
+        <div class="tier-unit">per year</div>
+        <div class="tier-divider"></div>
+        <ul class="tier-perks" style="color:rgba(232,221,208,.7)">
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Cohort naming rights</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>First access to student talent pipeline</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Brand on all materials, episodes &amp; events</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Featured in YouTube episodes</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Quarterly impact reports</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Direct line to founder</li>
+          <li><span class="tier-check" style="color:var(--gold)">✓</span>Recognition across all channels</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="showPage('contact')" style="align-self:flex-start">Start the Conversation</button>
+      </div>
+      <div class="tier tier-clay">
+        <div class="tier-badge tier-badge-white">Most Popular</div>
+        <div class="tier-name" style="color:rgba(255,255,255,.5)">Program Sponsor</div>
+        <div class="tier-price" style="color:#fff">$25K</div>
+        <div class="tier-unit" style="color:rgba(255,255,255,.35)">per year</div>
+        <div class="tier-divider"></div>
+        <ul class="tier-perks" style="color:rgba(255,255,255,.7)">
+          <li><span class="tier-check">✓</span>Episode sponsorship integration</li>
+          <li><span class="tier-check">✓</span>Cohort brand association</li>
+          <li><span class="tier-check">✓</span>Social recognition across all channels</li>
+          <li><span class="tier-check">✓</span>Semi-annual impact reports</li>
+          <li><span class="tier-check">✓</span>Program event presence</li>
+          <li><span class="tier-check">✓</span>Logo on student materials</li>
+        </ul>
+        <button class="btn btn-ghost" onclick="showPage('contact')" style="align-self:flex-start">Start the Conversation</button>
+      </div>
+      <div class="tier tier-cream">
+        <div class="tier-badge tier-badge-clay">Entry Point</div>
+        <div class="tier-name" style="color:rgba(30,20,13,.45)">Community Partner</div>
+        <div class="tier-price" style="color:var(--clay)">$10K</div>
+        <div class="tier-unit" style="color:rgba(30,20,13,.3)">per year</div>
+        <div class="tier-divider"></div>
+        <ul class="tier-perks" style="color:var(--muted)">
+          <li><span class="tier-check" style="color:var(--clay)">✓</span>Brand association with Lattice Inc</li>
+          <li><span class="tier-check" style="color:var(--clay)">✓</span>Social &amp; newsletter recognition</li>
+          <li><span class="tier-check" style="color:var(--clay)">✓</span>Annual impact report</li>
+          <li><span class="tier-check" style="color:var(--clay)">✓</span>Community goodwill &amp; CSR alignment</li>
+          <li><span class="tier-check" style="color:var(--clay)">✓</span>Invitation to program events</li>
+        </ul>
+        <button class="btn btn-dark" onclick="showPage('contact')" style="align-self:flex-start">Start the Conversation</button>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="page-contact-strip"><div class="wrap"><h3>Ready to build something together?</h3><p>Tech companies, general contractors, community businesses — there's a Lattice Inc partnership for you.</p><button class="btn btn-clay" onclick="showPage('contact')">Contact Us</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('show')">The Show</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p><button class="btn btn-ghost" onclick="showPage('contact')">Reach Out</button></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     BOARD
+══════════════════════════════════════ -->
+<div id="page-board" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Governance · Think Tank Leadership</div>
+      <h1>Help govern a think tank<br><em>that changes trajectories.</em></h1>
+      <p>Board members don't just advise a program — they help govern a research-driven organization with a national trajectory. Lattice Inc is assembling its founding board of strategists, educators, operators, and community builders.</p>
+    </div></div>
+  </div>
+  <div class="tt-breadcrumb"><div class="wrap"><div class="tt-bc-inner"><span class="bc-org">Lattice Inc · Think Tank for Performance Research &amp; Architecture</span><span class="bc-sep">·</span><span class="bc-current">Board members govern the organization — not just a program</span></div></div></div>
+
+  <div class="board-why"><div class="wrap">
+    <div class="eyebrow">The Opportunity</div>
+    <h2 class="display" style="font-size:clamp(2.2rem,3.5vw,3.2rem);color:var(--bark2);margin-bottom:3rem">Ground-floor access to <em>a national movement.</em></h2>
+    <div class="board-why-grid">
+      <div class="bwg-card"><h4>Real Strategic Influence</h4><p>This isn't a resume board seat. Board members actively shape the Lattice Inc model — from curriculum direction to corporate partner strategy to geographic expansion.</p></div>
+      <div class="bwg-card"><h4>Ground-Floor Access</h4><p>Lattice Inc is pre-scale with a proven founder, a confirmed pilot location, and a clear expansion roadmap. You're getting in at the start of something national.</p></div>
+      <div class="bwg-card"><h4>Network Amplification</h4><p>Board members connect Lattice Inc to their professional networks — opening doors to corporate partners, school districts, funders, and collaborators that accelerate the mission.</p></div>
+      <div class="bwg-card"><h4>Meaningful Legacy</h4><p>The students Lattice Inc serves are the ones the system typically overlooks. Your contribution creates outcomes that compound for decades.</p></div>
+    </div>
+  </div></div>
+
+  <div class="board-profiles"><div class="wrap">
+    <div class="eyebrow">Ideal Profiles</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:3rem">Who we're looking for.</h2>
+    <div class="profiles-grid">
+      <div class="profile"><span class="profile-icon">🏗️</span><h4>Corporate Partnerships</h4><p>Experience building B2B relationships, sponsorship agreements, or CSR programs. Ability to open doors with mid-to-large employers.</p></div>
+      <div class="profile"><span class="profile-icon">🎓</span><h4>Education &amp; Workforce Dev</h4><p>Background in school districts, curriculum design, workforce programs, or student engagement.</p></div>
+      <div class="profile"><span class="profile-icon">⚖️</span><h4>Legal &amp; Compliance</h4><p>Experience with hybrid entity structures, nonprofit governance, grant compliance, or social enterprise law.</p></div>
+      <div class="profile"><span class="profile-icon">📊</span><h4>Finance &amp; Fundraising</h4><p>Track record raising capital from foundations, corporate donors, or government programs.</p></div>
+      <div class="profile"><span class="profile-icon">📣</span><h4>Marketing &amp; Brand</h4><p>Ability to position Lattice Inc to students, corporate partners, press, and funders authentically and compellingly.</p></div>
+      <div class="profile"><span class="profile-icon">🌐</span><h4>Technology &amp; Product</h4><p>Experience building digital products, assessment tools, or learning platforms. Especially relevant as Lattice Inc develops its proprietary decision system.</p></div>
+    </div>
+  </div></div>
+
+  <div class="board-commit"><div class="wrap">
+    <div class="eyebrow gold">The Commitment</div>
+    <h2 class="display" style="font-size:clamp(2rem,3vw,2.8rem);color:var(--warm);margin-bottom:0">What to expect.</h2>
+    <div class="board-commit-grid">
+      <div class="bcomm"><div class="bcomm-label">Meetings</div><div class="bcomm-val">Quarterly</div><div class="bcomm-sub">Board meetings + founder check-in availability</div></div>
+      <div class="bcomm"><div class="bcomm-label">Term</div><div class="bcomm-val">2 Years</div><div class="bcomm-sub">Renewable based on mutual alignment</div></div>
+      <div class="bcomm"><div class="bcomm-label">Compensation</div><div class="bcomm-val">Equity of Impact</div><div class="bcomm-sub">Uncompensated at pilot stage; revisited as revenue scales</div></div>
+    </div>
+  </div></div>
+
+  <div class="page-contact-strip"><div class="wrap"><h3>Interested in joining the board?</h3><p>Tell us about your background and why Lattice Inc resonates with you. We'll set up a conversation with Ashanti.</p><button class="btn btn-clay" onclick="showPage('contact')">Express Your Interest</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     OUR NEEDS
+══════════════════════════════════════ -->
+<div id="page-needs" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">The Research &amp; Proof Phase</div>
+      <h1>We are building <em>in public.</em></h1>
+      <p>Every think tank has a research phase. This is ours. This page is a transparent record of exactly where we are, what we need, and how the right people can plug in at the ground floor of something national.</p>
+    </div></div>
+  </div>
+  <div class="tt-breadcrumb"><div class="wrap"><div class="tt-bc-inner"><span class="bc-org">Lattice Inc · Think Tank for Performance Research &amp; Architecture</span><span class="bc-sep">·</span><span class="bc-current">Currently: Research &amp; proof phase → Next: Full-time program → Long-term: National</span></div></div></div>
+
+  <div class="needs-status"><div class="wrap">
+    <div class="eyebrow">Where We Are</div>
+    <h2 class="display" style="font-size:clamp(1.8rem,3vw,2.5rem);color:var(--bark2)">Current status.</h2>
+    <div class="needs-status-grid">
+      <div class="ns-card"><div class="ns-label">Pilot Location</div><div class="ns-val ns-pos">Secured</div><div class="ns-sub">Capital Factory · Austin, TX</div></div>
+      <div class="ns-card"><div class="ns-label">First Cohort</div><div class="ns-val ns-mid">Recruiting</div><div class="ns-sub">40–50 students · All HS ages</div></div>
+      <div class="ns-card"><div class="ns-label">Corporate Partners</div><div class="ns-val ns-neg">0 Closed</div><div class="ns-sub">Actively in conversations</div></div>
+      <div class="ns-card"><div class="ns-label">Grant Funding</div><div class="ns-val ns-mid">In Progress</div><div class="ns-sub">Camelback Ventures application</div></div>
+    </div>
+    <div style="margin-top:1.5rem;padding:1.5rem 2rem;background:rgba(196,120,90,.06);border-left:2px solid var(--clay)">
+      <p style="font-size:.82rem;color:var(--muted);line-height:1.75">Looking to join the Lattice Inc team? Full role descriptions — including Sponsorship Representative, Partnership Representative, and all planned positions — are on our <a onclick="showPage('careers')" style="color:var(--clay);cursor:pointer;border-bottom:1px solid var(--clay)">Careers page</a>.</p>
+    </div>
+  </div></div>
+
+  <div class="needs-categories"><div class="wrap">
+    <div class="eyebrow">Current Opportunities</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:.5rem">Where you can <em>make a difference.</em></h2>
+    <p class="body-text" style="margin-bottom:3.5rem;max-width:580px">Each item below represents a real gap in our current capacity. If any of these align with what you bring — we'd love to hear from you.</p>
+
+    <div class="needs-cat">
+      <div class="needs-cat-header">The Enrichment Program</div>
+      <div class="needs-items">
+        <div class="needs-item"><h4>Volunteer Industry Speakers</h4><p>Professionals in Tech, Construction, and Manufacturing willing to present monthly sessions to 40–50 high school students at Capital Factory.</p></div>
+        <div class="needs-item"><h4>School Counselor &amp; Principal Partnerships</h4><p>Austin-area school counselors and principals willing to recruit students and champion Lattice Inc within their institutions.</p></div>
+        <div class="needs-item"><h4>Student Transportation Sponsors</h4><p>Funding or in-kind support to provide bus passes or rideshare coverage so transportation is never a barrier to attendance.</p></div>
+        <div class="needs-item"><h4>CliftonStrengths Assessment Funding</h4><p>Each student needs a Top 5 assessment on Day 1 at $19.99/student. A cohort of 50 students = $1,000.</p></div>
+        <div class="needs-item"><h4>Curriculum Materials Sponsors</h4><p>Funding or in-kind support for all types of curriculum materials — printed workbooks, journals, student guides, digital tools, activity supplies, and any resources needed to deliver a high-quality learning experience in every session.</p></div>
+        <div class="needs-item"><h4>Holistic Health &amp; Culture Experts</h4><p>Vetted professionals in nutrition, neuroscience, shadow work, interpersonal skills, and personal development to teach the culture curriculum.</p></div>
+      </div>
+    </div>
+
+    <div class="needs-cat">
+      <div class="needs-cat-header gold">The YouTube Show</div>
+      <div class="needs-items">
+        <div class="needs-item"><h4>Culturally Relevant Influencers</h4><p>Co-hosts for episodes who have audiences aligned with career development, wellness, and real-world skills.</p></div>
+        <div class="needs-item"><h4>Activity Sponsors</h4><p>Venues willing to sponsor or partner for hobby spotlight segments — spas, pottery studios, go-kart venues, ski resorts, etc.</p></div>
+        <div class="needs-item"><h4>Restaurant &amp; Dining Sponsors</h4><p>Restaurants willing to sponsor the intermission dining segment in exchange for branded content placement.</p></div>
+        <div class="needs-item"><h4>Freelance Videographers &amp; Editors</h4><p>Day-rate videographers in Austin, NYC, and other target markets. Post-production editors experienced in YouTube long-form content.</p></div>
+      </div>
+    </div>
+
+    <div class="needs-cat">
+      <div class="needs-cat-header moss">Technology &amp; Infrastructure</div>
+      <div class="needs-items">
+        <div class="needs-item"><h4>Assessment Algorithm Developer</h4><p>A developer or dev team to build Lattice Inc's proprietary calm/thrill career-matching decision system — eventually white-labeled to schools and workforce programs.</p></div>
+        <div class="needs-item"><h4>UX/UI Designer</h4><p>Student-facing interface design for the assessment tool. Should be approachable, visually engaging, and mobile-first.</p></div>
+        <div class="needs-item"><h4>Website Developer</h4><p>A developer to build and maintain the production Lattice Inc website from this design.</p></div>
+        <div class="needs-item"><h4>Tech Sponsor</h4><p>Technology company willing to sponsor devices, software licenses, or infrastructure in exchange for brand association.</p></div>
+      </div>
+    </div>
+
+    <div class="needs-cat">
+      <div class="needs-cat-header muted">Organizational Growth</div>
+      <div class="needs-items">
+        <div class="needs-item"><h4>Board Members</h4><p>Strategic advisors with expertise in corporate partnerships, education, legal/compliance, fundraising, marketing, or technology.</p></div>
+        <div class="needs-item"><h4>Grant Writers</h4><p>Experienced grant writers familiar with workforce development, education equity, and social enterprise funding landscapes.</p></div>
+        <div class="needs-item"><h4>Legal Counsel (Pro Bono / Reduced Rate)</h4><p>A lawyer familiar with hybrid entity structures, nonprofit governance, and social enterprise law.</p></div>
+        <div class="needs-item"><h4>Corporate Partners &amp; Sponsors</h4><p>Companies in Tech, Construction, and Manufacturing willing to fund cohorts and build their talent pipeline through Lattice Inc.</p></div>
+      </div>
+    </div>
+
+    <div class="needs-cta-inner">
+      <h3>See something that's yours to give?</h3>
+      <p>Individual expertise, connections, and in-kind contributions are just as valuable as funding at this stage. Reach out and tell us what you bring.</p>
+      <button class="btn btn-clay" onclick="showPage('contact')">Tell Us How You Can Help</button>
+    </div>
+  </div></div>
+
+  <div class="page-contact-strip"><div class="wrap"><h3>Every contribution shapes the outcome.</h3><p>Whether it's expertise, a connection, funding, or in-kind support — it all moves the program forward.</p><button class="btn btn-clay" onclick="showPage('contact')">Get in Touch</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('show')">The Show</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     CONTACT
+══════════════════════════════════════ -->
+<div id="page-contact" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Contact</div>
+      <h1>Let's start <em>a conversation.</em></h1>
+      <p>Whether you're a potential partner, board prospect, influencer, or someone who just wants to know more — reach out. We respond to every inquiry personally.</p>
+    </div></div>
+  </div>
+
+  <div class="contact-section"><div class="wrap">
+    <div class="contact-tabs">
+      <button class="ctab active" onclick="switchForm('partner',this)">Corporate Partner</button>
+      <button class="ctab" onclick="switchForm('board',this)">Board Interest</button>
+      <button class="ctab" onclick="switchForm('influencer',this)">Show / Influencer</button>
+      <button class="ctab" onclick="switchForm('general',this)">General</button>
+    </div>
+
+    <div id="cf-partner" class="contact-form-box">
+      <p class="cf-desc">Tell us about your company and how you're thinking about partnering with Lattice Inc.</p>
+      <div class="cf-row"><div class="cf-field"><label>Your Name *</label><input type="text" placeholder="Full name"></div><div class="cf-field"><label>Company *</label><input type="text" placeholder="Your company"></div></div>
+      <div class="cf-row"><div class="cf-field"><label>Work Email *</label><input type="email" placeholder="you@company.com"></div><div class="cf-field"><label>Your Title</label><input type="text" placeholder="e.g. VP of Community Impact"></div></div>
+      <div class="cf-field"><label>Package Interest</label><select><option value="">Select an option</option><option>Founding Partner ($50K/year)</option><option>Program Sponsor ($25K/year)</option><option>Community Partner ($10K/year)</option><option>Workforce Pipeline Contract ($75K+)</option><option>Not sure yet</option></select></div>
+      <div class="cf-field"><label>Tell us about your interest *</label><textarea placeholder="What draws you to Lattice Inc? What outcomes matter most to your company?"></textarea></div>
+      <button class="cf-submit" onclick="submitForm()">Send Message</button>
+    </div>
+
+    <div id="cf-board" class="contact-form-box" style="display:none">
+      <p class="cf-desc">We'd love to learn about your background and why Lattice Inc resonates with you.</p>
+      <div class="cf-row"><div class="cf-field"><label>Your Name *</label><input type="text" placeholder="Full name"></div><div class="cf-field"><label>Email *</label><input type="email" placeholder="your@email.com"></div></div>
+      <div class="cf-field"><label>LinkedIn URL</label><input type="text" placeholder="linkedin.com/in/yourprofile"></div>
+      <div class="cf-field"><label>Primary Expertise</label><select><option value="">Select one</option><option>Corporate Partnerships</option><option>Education &amp; Workforce Development</option><option>Legal &amp; Compliance</option><option>Finance &amp; Fundraising</option><option>Marketing &amp; Brand</option><option>Technology &amp; Product</option><option>Other</option></select></div>
+      <div class="cf-field"><label>Why does Lattice Inc resonate with you? *</label><textarea placeholder="Tell us about your background and what draws you to this work."></textarea></div>
+      <button class="cf-submit" onclick="submitForm()">Send Message</button>
+    </div>
+
+    <div id="cf-influencer" class="contact-form-box" style="display:none">
+      <p class="cf-desc">Interested in being on the show? Tell us about yourself and your audience.</p>
+      <div class="cf-row"><div class="cf-field"><label>Your Name *</label><input type="text" placeholder="Full name"></div><div class="cf-field"><label>Email *</label><input type="email" placeholder="your@email.com"></div></div>
+      <div class="cf-row"><div class="cf-field"><label>Primary Handle *</label><input type="text" placeholder="@yourhandle"></div><div class="cf-field"><label>Primary Platform</label><select><option value="">Select one</option><option>YouTube</option><option>Instagram</option><option>TikTok</option><option>Multiple</option></select></div></div>
+      <div class="cf-field"><label>Audience Size</label><select><option value="">Select one</option><option>Under 10K</option><option>10K–50K</option><option>50K–250K</option><option>250K–1M</option><option>1M+</option></select></div>
+      <div class="cf-field"><label>Tell us about yourself and your audience *</label><textarea placeholder="What do you create? Who follows you? Why does Lattice Inc's mission align with your brand?"></textarea></div>
+      <button class="cf-submit" onclick="submitForm()">Send Message</button>
+    </div>
+
+    <div id="cf-general" class="contact-form-box" style="display:none">
+      <p class="cf-desc">Questions, ideas, media requests, or anything else — we want to hear from you.</p>
+      <div class="cf-row"><div class="cf-field"><label>Your Name *</label><input type="text" placeholder="Full name"></div><div class="cf-field"><label>Email *</label><input type="email" placeholder="your@email.com"></div></div>
+      <div class="cf-field"><label>Subject</label><input type="text" placeholder="What's this about?"></div>
+      <div class="cf-field"><label>Message *</label><textarea placeholder="Tell us what's on your mind."></textarea></div>
+      <button class="cf-submit" onclick="submitForm()">Send Message</button>
+    </div>
+
+    <div id="cf-success" class="cf-success" style="display:none">
+      <h3>Thank you.</h3>
+      <p>We received your message and will be in touch within 48 hours.</p>
+      <button onclick="resetForm()">Submit another inquiry</button>
+    </div>
+
+    <div class="contact-meta">
+      <div class="cm-item"><div class="cm-label">Location</div><div class="cm-val">Austin, TX · Capital Factory</div></div>
+      <div class="cm-item"><div class="cm-label">Founder</div><div class="cm-val">Ashanti Sears</div></div>
+      <div class="cm-item"><div class="cm-label">Response Time</div><div class="cm-val">Within 48 hours</div></div>
+    </div>
+  </div></div>
+
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('show')">The Show</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('needs')">Our Needs</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p><p>Performance Research &amp; Architecture</p></div></div></div>
+</div>
+
+<!-- ══════════════════════════════════
+     CAREERS (hidden)
+══════════════════════════════════════ -->
+<div id="page-careers" class="page">
+  <div class="page-hero">
+    <div class="page-hero-bg"></div>
+    <div class="wrap"><div class="page-hero-inner">
+      <div class="page-hero-eyebrow">Internal Resource · Talent Roadmap</div>
+      <h1>Roles that will <em>power Lattice Inc.</em></h1>
+      <p>Every role we envision as Lattice Inc grows from a monthly pilot into a full-time enrichment program with our own facility — organized by what we need now and what we're building toward.</p>
+    </div></div>
+  </div>
+
+  <div class="careers-section"><div class="wrap">
+    <div class="eyebrow">Phase 1 · Active Pilot</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:.5rem">Roles we need <em>to optimize the pilot.</em></h2>
+    <p class="body-text" style="margin-bottom:2.5rem;max-width:580px">These roles are actively needed to run Lattice Inc's monthly enrichment program and YouTube channel. Most are part-time or contract at this stage.</p>
+    <!-- Operations -->
+    <div style="margin-bottom:2.5rem">
+      <div style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid rgba(196,120,90,.15);display:flex;align-items:center;gap:.75rem"><span style="display:block;width:1.5rem;height:1px;background:var(--clay)"></span>Operations</div>
+      <div class="careers-grid">
+        <div class="career-card"><div class="career-dept">Operations</div><div class="career-title">Policy Analyst</div><p class="career-desc">Monitors and interprets workforce development, education, and industry-specific policy that affects Lattice Inc's programming, funding eligibility, and corporate partner relationships.</p></div>
+        <div class="career-card"><div class="career-dept">Operations</div><div class="career-title">Program Coordinator</div><p class="career-desc">Manages day-of logistics for monthly enrichment sessions — coordinating speakers, student check-in, materials, space setup, and post-session documentation.</p></div>
+        <div class="career-card"><div class="career-dept">Operations</div><div class="career-title">Administrative Assistant</div><p class="career-desc">Supports day-to-day operations — managing calendars, communications, vendor coordination, and ensuring the founder and team stay focused on mission-critical work.</p></div>
+      </div>
+    </div>
+    <!-- Student Services -->
+    <div style="margin-bottom:2.5rem">
+      <div style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid rgba(196,120,90,.15);display:flex;align-items:center;gap:.75rem"><span style="display:block;width:1.5rem;height:1px;background:var(--clay)"></span>Student Services</div>
+      <div class="careers-grid">
+        <div class="career-card"><div class="career-dept">Student Services</div><div class="career-title">Case Manager</div><p class="career-desc">Supports individual students through their Lattice Inc journey and beyond — tracking outcomes, connecting students with resources, and managing alumni quality-of-life follow-up.</p></div>
+      </div>
+    </div>
+    <!-- Technology -->
+    <div style="margin-bottom:2.5rem">
+      <div style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid rgba(196,120,90,.15);display:flex;align-items:center;gap:.75rem"><span style="display:block;width:1.5rem;height:1px;background:var(--clay)"></span>Technology & Data</div>
+      <div class="careers-grid">
+        <div class="career-card"><div class="career-dept">Technology</div><div class="career-title">Data Engineer</div><p class="career-desc">Builds and maintains the data infrastructure that powers Lattice Inc's student tracking, program analytics, and quality-of-life outcome measurements.</p></div>
+        <div class="career-card"><div class="career-dept">Technology</div><div class="career-title">Data Scientist</div><p class="career-desc">Transforms raw program and alumni data into insights — identifying what's working, predicting student outcomes, and surfacing the evidence corporate partners need to justify investment.</p></div>
+        <div class="career-card"><div class="career-dept">Technology</div><div class="career-title">Data Analyst</div><p class="career-desc">Produces reports and visualizations from program data to support grant applications, impact reports, and internal decision-making.</p></div>
+      </div>
+    </div>
+    <!-- Business Development -->
+    <div style="margin-bottom:2.5rem">
+      <div style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid rgba(196,120,90,.15);display:flex;align-items:center;gap:.75rem"><span style="display:block;width:1.5rem;height:1px;background:var(--clay)"></span>Business Development</div>
+      <div class="careers-grid">
+        <div class="career-card"><div class="career-dept">Business Development</div><div class="career-title">Corporate Intelligence Analyst</div><p class="career-desc">Collects and synthesizes skills gap requirements from corporate partners — translating what employers actually need into curriculum insights that sharpen Lattice Inc's industry sessions.</p></div>
+        <div class="career-card"><div class="career-dept">Partnerships</div><div class="career-title">Sponsorship Representative</div><p class="career-desc">Identifies, pitches, and manages relationships with episode sponsors, activity partners, and brand integrations for the Lattice Inc YouTube show.</p></div>
+        <div class="career-card"><div class="career-dept">Partnerships</div><div class="career-title">Partnership Representative</div><p class="career-desc">Manages and cultivates relationships with corporate partners, school counselors, and community organizations — ensuring each partner feels engaged and valued.</p></div>
+      </div>
+    </div>
+    <!-- Creative & Marketing -->
+    <div style="margin-bottom:2.5rem">
+      <div style="font-family:var(--label);font-size:0.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--clay);margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid rgba(196,120,90,.15);display:flex;align-items:center;gap:.75rem"><span style="display:block;width:1.5rem;height:1px;background:var(--clay)"></span>Creative & Marketing</div>
+      <div class="careers-grid">
+        <div class="career-card"><div class="career-dept">Creative</div><div class="career-title">Graphic Designer</div><p class="career-desc">Creates visual assets across all Lattice Inc touchpoints — student materials, sponsor decks, social content, episode graphics, and brand identity extensions.</p></div>
+        <div class="career-card"><div class="career-dept">Marketing</div><div class="career-title">Social Media Manager</div><p class="career-desc">Manages Lattice Inc's social presence — building community, amplifying program moments, promoting episodes, and driving student and partner CTAs.</p></div>
+        <div class="career-card"><div class="career-dept">Marketing</div><div class="career-title">Digital Marketing Data Analyst</div><p class="career-desc">Tracks performance across digital channels — YouTube analytics, social engagement, email open rates, and CTA conversion — to optimize how Lattice Inc reaches students and partners.</p></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="careers-future"><div class="wrap">
+    <div class="vision-box">
+      <div style="font-size:1.4rem;flex-shrink:0">🎯</div>
+      <div>
+        <div class="vision-box-label">Long-Term Vision</div>
+        <p class="vision-box-body"><span style="display:block"><strong>Our long-term goal is to become a full-time enrichment program operating out of our own dedicated facility</strong> — a space that belongs to the students and the community we serve. The roles below reflect what that version of Lattice Inc requires to operate at its full potential.</span></p>
+      </div>
+    </div>
+    <div class="eyebrow" style="margin-bottom:.5rem">Phase 2 · Full-Time Program</div>
+    <h2 class="display" style="font-size:clamp(2rem,3.5vw,3rem);color:var(--bark2);margin-bottom:.5rem">Roles we're building <em>toward.</em></h2>
+    <p class="body-text" style="margin-bottom:2.5rem;max-width:580px">These roles become necessary once Lattice Inc secures corporate sponsors and transitions into a full-time enrichment program with a dedicated facility.</p>
+    <div class="careers-future-grid">
+      <div class="career-card-future"><div class="career-dept">Operations</div><div class="career-title">Program Coordinator (Additional)</div><p class="career-desc">As the program scales to multiple cohorts and cities, a second coordinator handles parallel session logistics, speaker scheduling, and site-specific operations independently.</p></div>
+      <div class="career-card-future"><div class="career-dept">Leadership</div><div class="career-title">Program Director</div><p class="career-desc">Discovers, vets, and manages the full roster of industry speakers and culture curriculum experts — ensuring every session delivers the depth and relevance Lattice Inc promises.</p></div>
+      <div class="career-card-future"><div class="career-dept">Facilities</div><div class="career-title">Facilities &amp; Cleaning Staff</div><p class="career-desc">Maintains a clean, welcoming, and professional environment in Lattice Inc's dedicated facility — because the physical space communicates the standard we hold for students.</p></div>
+      <div class="career-card-future"><div class="career-dept">Operations</div><div class="career-title">Program Optimization Analyst</div><p class="career-desc">Uses student outcome data, session feedback, and alumni tracking to continuously improve the Lattice Inc program — identifying gaps, testing changes, and documenting what drives the best student results.</p></div>
+    </div>
+  </div></div>
+
+  <div class="page-contact-strip"><div class="wrap"><h3>Interested in one of these roles?</h3><p>Whether it's current or future — reach out and tell us why you belong here.</p><button class="btn btn-clay" onclick="showPage('contact')">Get in Touch</button></div></div>
+  <div class="ft"><div class="wrap"><div class="ft-grid"><div><div class="ft-logo" style="display:flex;align-items:center;gap:9px;margin-bottom:.8rem">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="4"  y1="4"  x2="28" y2="4"  stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="16" x2="28" y2="16" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="4"  y1="28" x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="16" y1="4"  x2="16" y2="28" stroke="#C4785A" stroke-width="1.5"/>
+        <line x1="28" y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.2)"  stroke-width="1"/>
+        <line x1="4"  y1="4"  x2="28" y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="28" y1="4"  x2="4"  y2="28" stroke="rgba(196,120,90,0.1)"  stroke-width="0.75"/>
+        <line x1="4"  y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="28" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="4"  y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="28" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="4"  x2="4"  y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="4"  x2="16" y2="16" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="16" y1="16" x2="4"  y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <line x1="28" y1="16" x2="16" y2="28" stroke="#C4785A" stroke-width="0.75" opacity="0.5"/>
+        <circle cx="4"  cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="4"  r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="16" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="28" cy="28" r="2.2" fill="rgba(196,120,90,0.2)"/>
+        <circle cx="4"  cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="28" cy="16" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="4"  r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="28" r="2.8" fill="rgba(196,120,90,0.48)"/>
+        <circle cx="16" cy="16" r="5"   fill="#C4785A"/>
+        <circle cx="16" cy="16" r="2.2" fill="#1E140D"/>
+      </svg>
+          <span style="font-family:var(--label);font-weight:800;font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm);line-height:1">LATTICE <em style="color:var(--clay);font-style:normal">INC</em></span>
+        </div><p class="ft-tag">A think tank for performance research and architecture.</p></div><div><div class="ft-head">Navigate</div><ul class="ft-links"><li><a onclick="showPage('home')">Home</a></li><li><a onclick="showPage('program')">The Program</a></li><li><a onclick="showPage('partner')">Partner</a></li><li><a onclick="showPage('needs')">Our Needs</a></li><li><a onclick="showPage('contact')">Contact</a></li><li><a onclick="showPage('careers')">Careers</a></li></ul></div><div><div class="ft-head">Austin, TX</div><p style="font-size:.78rem;color:rgba(232,221,208,.3);line-height:1.75;margin-bottom:1.2rem">Capital Factory<br>Founded by Ashanti Sears</p></div></div><div class="ft-bottom"><p>© 2026 Lattice Inc.</p></div></div></div>
+</div>
+
+<script>
+// ── PAGE ROUTING ──
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pg = document.getElementById('page-'+id);
+  if(pg){pg.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});}
+  if(id==='program') setTimeout(renderRoles,80);
+}
+function toggleMenu(){document.getElementById('mobMenu').classList.toggle('open')}
+function closeMob(){document.getElementById('mobMenu').classList.remove('open')}
+
+// ── CONTACT FORMS ──
+let activeForm = 'partner';
+function switchForm(key,btn){
+  ['partner','board','influencer','general'].forEach(k=>{
+    const el = document.getElementById('cf-'+k);
+    if(el) el.style.display='none';
+  });
+  document.getElementById('cf-success').style.display='none';
+  const target = document.getElementById('cf-'+key);
+  if(target) target.style.display='block';
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  activeForm=key;
+}
+function submitForm(){
+  ['partner','board','influencer','general'].forEach(k=>{
+    const el=document.getElementById('cf-'+k);
+    if(el)el.style.display='none';
+  });
+  document.getElementById('cf-success').style.display='block';
+}
+function resetForm(){
+  document.getElementById('cf-success').style.display='none';
+  const el=document.getElementById('cf-'+activeForm);
+  if(el)el.style.display='block';
+}
+
+// ── ROLES EXPLORER ──
+const ROLES=[
+  {name:"Instrumentation Technician",industry:"Energy & Utilities",sector:"Energy",gap:"Students don't understand what instruments actually control — pressure, flow, temperature logic — or why calibration errors cascade across an entire plant."},
+  {name:"Pipeline Inspector",industry:"Energy & Utilities",sector:"Energy",gap:"No context on corrosion science, regulatory frameworks (PHMSA), or how inspection findings flow into maintenance decisions."},
+  {name:"Power Line Technician",industry:"Energy & Utilities",sector:"Energy",gap:"Students lack understanding of grid topology — they learn to splice wire but don't know where it fits in transmission vs distribution."},
+  {name:"Substation Technician",industry:"Energy & Utilities",sector:"Energy",gap:"Transformers, switchgear, and protection relay logic are almost never covered before CE — students arrive with no mental model of what a substation does."},
+  {name:"Wind Turbine Technician",industry:"Energy & Utilities",sector:"Energy",gap:"Fast-growing in West Texas; students lack context on SCADA systems, gearbox logic, and how wind farms connect to the grid."},
+  {name:"Solar PV Installer / Technician",industry:"Energy & Utilities",sector:"Energy",gap:"Rapid growth but students don't understand inverter systems, net metering, or how utility-scale differs from residential."},
+  {name:"Water Treatment Operator",industry:"Energy & Utilities",sector:"Energy",gap:"Chemistry of treatment processes and regulatory compliance (EPA/TCEQ) are invisible until CE."},
+  {name:"Natural Gas Compression Tech",industry:"Energy & Utilities",sector:"Energy",gap:"Compressor station logic, gas measurement, and the role of midstream in the supply chain are almost entirely unknown to students."},
+  {name:"Ironworker / Structural Steel",industry:"Construction",sector:"Construction",gap:"Blueprint reading, connection types, and how structural steel fits into a building's load path — none of this context exists before trade school."},
+  {name:"Concrete Finisher / Flatwork",industry:"Construction",sector:"Construction",gap:"Mix design, curing science, and ACI standards are gaps employers cite constantly — students learn to pour but not why it matters."},
+  {name:"Glazier (Glass & Curtain Wall)",industry:"Construction",sector:"Construction",gap:"Students have no idea this trade exists or that it spans everything from storefronts to high-rise curtain walls."},
+  {name:"Boilermaker",industry:"Construction",sector:"Construction",gap:"Critical for refineries and power plants in Texas; students don't understand vessel codes (ASME) or why pressure vessel integrity is safety-critical."},
+  {name:"Millwright",industry:"Construction",sector:"Construction",gap:"Industrial machinery alignment, precision installation, and the role of tolerances — context that makes CE coursework meaningful."},
+  {name:"Elevator Mechanic",industry:"Construction",sector:"Construction",gap:"One of the highest-paid trades; almost no awareness among students. Hydraulics, traction systems, and safety codes are completely opaque."},
+  {name:"Sheet Metal Worker",industry:"Construction",sector:"Construction",gap:"HVAC duct design logic, pressure balancing, and how sheet metal connects to building energy performance — invisible before CE."},
+  {name:"Tile / Terrazzo Installer",industry:"Construction",sector:"Construction",gap:"Surface prep science, grout chemistry, and substrate compatibility are employer-flagged gaps — students treat it as purely manual work."},
+  {name:"Surgical Technologist",industry:"Healthcare",sector:"Healthcare",gap:"Students arrive at surgical tech programs with no understanding of sterile field logic, instrument sets by procedure, or OR workflow."},
+  {name:"Sterile Processing Technician",industry:"Healthcare",sector:"Healthcare",gap:"Almost no pre-CE context exists on decontamination science, sterilization methods, or how SPD errors directly cause surgical site infections."},
+  {name:"Medical Equipment Technician",industry:"Healthcare",sector:"Healthcare",gap:"Biomedical device maintenance is an invisible career — students don't know hospitals need technicians to maintain ventilators, infusion pumps, and imaging equipment."},
+  {name:"Dialysis Technician",industry:"Healthcare",sector:"Healthcare",gap:"The mechanics of renal replacement therapy, water treatment systems, and machine setup logic are unknown before CE."},
+  {name:"Pharmacy Technician",industry:"Healthcare",sector:"Healthcare",gap:"Drug interaction awareness, dispensing workflow, and formulary logic — employers say new hires technically pass licensing but lack operational context."},
+  {name:"EMT / Emergency Medical Tech",industry:"Healthcare",sector:"Healthcare",gap:"Triage logic, EMS system structure (BLS vs ALS), and how pre-hospital care connects to hospital intake is rarely understood before CE."},
+  {name:"CNC Machinist",industry:"Manufacturing",sector:"Manufacturing",gap:"GD&T and why micron-level precision matters in end-use parts — students learn to run machines but not the quality system around them."},
+  {name:"Quality Control Inspector",industry:"Manufacturing",sector:"Manufacturing",gap:"SPC, Cpk, and how QC fits into ISO/AS9100 certification systems are entirely pre-CE blind spots."},
+  {name:"Industrial Maintenance Mechanic",industry:"Manufacturing",sector:"Manufacturing",gap:"Predictive vs preventive maintenance logic, and how downtime cost is calculated — students don't know why being proactive matters financially."},
+  {name:"Mechatronics Technician",industry:"Manufacturing",sector:"Manufacturing",gap:"The integration of mechanical, electrical, and software systems is rarely framed holistically before CE — students silo each discipline."},
+  {name:"Plastics / Composites Technician",industry:"Manufacturing",sector:"Manufacturing",gap:"Material science of polymers and why processing parameters directly affect part properties — invisible pre-CE."},
+  {name:"Nondestructive Testing (NDT) Tech",industry:"Manufacturing",sector:"Manufacturing",gap:"Ultrasonic, radiographic, and magnetic particle testing are unknown career paths; students don't understand what NDT finds or why it matters for safety."},
+  {name:"Diesel Mechanic",industry:"Logistics & Supply Chain",sector:"Logistics",gap:"Modern diesels are 60% software — students arrive not understanding ECMs, fault codes, and telematics before ever picking up a wrench."},
+  {name:"Warehouse Automation Tech",industry:"Logistics & Supply Chain",sector:"Logistics",gap:"Conveyor systems, sorters, and WMS software integration — employers say new hires don't understand how automation layers connect to warehouse operations."},
+  {name:"Cold Chain Technician",industry:"Logistics & Supply Chain",sector:"Logistics",gap:"Temperature monitoring systems, refrigeration mechanics, and FDA/USDA compliance for food and pharma cold chain are pre-CE gaps in a huge Texas sector."},
+  {name:"Aircraft Mechanic (A&P)",industry:"Logistics & Supply Chain",sector:"Logistics",gap:"FAA regulatory structure, maintenance records logic, and how airworthiness directives work — students enter A&P programs with no framework for why documentation is safety-critical."},
+  {name:"Irrigation Systems Technician",industry:"Agriculture & Water",sector:"Ag",gap:"Hydraulic design principles, ET-based scheduling, and how smart controllers integrate with soil sensors — critical in drought-stressed Texas but invisible pre-CE."},
+  {name:"Precision Ag Technician",industry:"Agriculture & Water",sector:"Ag",gap:"GPS/GNSS systems, variable rate technology, and how yield maps connect to agronomic decisions — almost no pre-CE context exists."},
+  {name:"Environmental Compliance Tech",industry:"Agriculture & Water",sector:"Ag",gap:"TCEQ permit frameworks, stormwater management, and how industrial sites manage environmental reporting — students don't know this career exists."},
+  {name:"Fiber Optic Technician",industry:"Tech & Infrastructure",sector:"Tech",gap:"Light transmission physics, splicing techniques, and how fiber connects to ISP/carrier networks — students see internet cables not a structured infrastructure career."},
+  {name:"Low Voltage Systems Tech",industry:"Tech & Infrastructure",sector:"Tech",gap:"Security systems, AV integration, building automation, and structured cabling all fall under low voltage — almost no awareness of this as a distinct trade."},
+  {name:"Industrial Controls / PLC Tech",industry:"Tech & Infrastructure",sector:"Tech",gap:"Ladder logic, HMI design, and how PLCs sit between physical machines and enterprise software — students don't understand the automation layer before CE."},
+  {name:"Cybersecurity Technician (OT)",industry:"Tech & Infrastructure",sector:"Tech",gap:"Operational technology (OT) security — protecting industrial control systems — is distinct from IT security and almost entirely unknown at the high school level."}
+];
+
+let rCurrentFilter='all';
+function rFilter(f,btn){
+  rCurrentFilter=f;
+  document.querySelectorAll('#rFilters .r-filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRoles();
+}
+function renderRoles(){
+  const c=document.getElementById('rContainer');
+  if(!c)return;
+  const filtered=rCurrentFilter==='all'?ROLES:ROLES.filter(r=>r.sector===rCurrentFilter);
+  const grouped={};
+  filtered.forEach(r=>{if(!grouped[r.industry])grouped[r.industry]=[];grouped[r.industry].push(r);});
+  c.innerHTML='';
+  let total=0;
+  Object.entries(grouped).forEach(([ind,list])=>{
+    total+=list.length;
+    const sec=document.createElement('div');sec.className='r-section';
+    sec.innerHTML='<div class="r-section-label">'+ind+'</div><div class="r-grid" id="rg-'+ind.replace(/[^a-z0-9]/gi,'_')+'"></div>';
+    c.appendChild(sec);
+    const grid=sec.querySelector('.r-grid');
+    list.forEach(role=>{
+      const card=document.createElement('div');card.className='r-card';
+      card.innerHTML='<div class="r-card-name">'+role.name+'</div><div class="r-card-industry">'+role.industry+'</div><div class="r-tags"><span class="r-tag r-tag-tx">Texas demand</span><span class="r-tag r-tag-gap">Employer gap</span><span class="r-tag r-tag-ce">CE pathway</span></div><div class="r-gap"><strong style="font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:rgba(232,221,208,.25)">Key gap: </strong>'+role.gap+'</div>';
+      grid.appendChild(card);
+    });
+  });
+  const countEl=document.getElementById('rCount');if(countEl)countEl.textContent=total;
+}
+document.addEventListener('DOMContentLoaded',renderRoles);
+</script>
+</body>
+</html>
